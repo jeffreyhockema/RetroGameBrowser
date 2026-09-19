@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/player/shell.css">
+  <link rel="stylesheet" href="/player/touch-buttons.css">
+</head>
+<body>
+  <div class="player-stage">
+    <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+
+  <!-- The one card every platform loads behind (see /player/shell.js). -->
+  <div class="player-note" id="player-note" role="status" aria-live="polite" hidden>
+    <h3 id="player-note-title"></h3>
+    <div class="player-note-bar" id="player-note-bar" hidden><div class="player-note-fill" id="player-note-fill"></div></div>
+    <p id="player-note-text" hidden></p>
+    <div class="player-note-ways" id="player-note-ways" hidden></div>
+  </div>
+
+  <script src="/player/shell.js"></script>
+  <script src="/player/touch-buttons.js"></script>
+  <script src="/player/mame-player.js"></script>
+  <script src="/player/netplay-stream.js"></script>
+  <script src="/player/netplay-fixes.js"></script>
+  <script src="/player/mame-netplay.js"></script>
+  <script>
+  // Arcade games in MAME 0.244's own browser build (see server/lib/mame.js). The server says which
+  // bundle of drivers the game needs and which files to put in MAME's folders; this page fetches
+  // them and hands them to /player/mame-player.js, which runs the game.
+  (async () => {
+    const query = new URLSearchParams(location.search);
+    const versionId = query.get('v');
+    const shell = PlayerShell.init();
+    shell.gettingReady();
+
+    // Playing with friends (see /player/mame-netplay.js): the room is named in the URL's
+    // fragment, which never reaches the server. The host has the room and its key, a friend the
+    // room to join. By video only the host runs the game, whose sound is caught for the stream
+    // before MAME makes it; by rollback everyone does, and presses are kept from MAME from the
+    // start, to go through the engine.
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const mode = ['stream', 'rollback'].includes(hash.get('mode')) ? hash.get('mode') : null;
+    const together = !mode ? null
+      : hash.get('room') ? { owner: true, code: hash.get('room'), key: hash.get('key') ?? '', name: hash.get('name') || 'The host' }
+        : hash.get('join') && mode === 'rollback' ? { owner: false, code: hash.get('join'), name: hash.get('name') || 'A friend' }
+          : null;
+    if (together && mode === 'stream') NetplayStream.captureAudio();
+    const guard = together && mode === 'rollback' ? MameNetplay.guardInput() : null;
+    const startTogether = async () => {
+      try {
+        await new Promise((resolve, reject) => {
+          const tag = document.createElement('script');
+          tag.src = '/emu/data/src/socket.io.min.js';
+          tag.onload = resolve;
+          tag.onerror = () => reject(new Error('the connection library is missing'));
+          document.head.append(tag);
+        });
+        const options = { player, room: together, owner: together.owner, title: shell.gameTitle(), tell: shell.tell };
+        // Where the browser's console and test scripts find it, as on the console player.
+        window.netplayFixes = mode === 'rollback'
+          ? await MameNetplay.playRollback({ ...options, guard })
+          : await MameNetplay.hostByVideo(options);
+      } catch (err) {
+        shell.tell({ type: 'netplay', error: `Couldn't start playing together: ${err.message}` });
+      }
+    };
+
+    // ---------- On-screen buttons, on a phone ----------
+
+    // The app says which buttons to show and which key each presses (see
+    // /player/touch-buttons.js), and whether they're wanted: on a phone. They come up once the
+    // game is running, and press keys straight into MAME.
+    let player = null;
+    const pad = TouchButtons.create(document.body, { press: (key, down) => player?.press(key, down) });
+    let padWanted = false;
+    const showPad = () => pad.setVisible(padWanted && Boolean(player?.running()));
+    window.addEventListener('message', (e) => {
+      if (e.origin !== location.origin || e.data?.source !== 'app' || e.data.type !== 'touch-buttons') return;
+      pad.set(Array.isArray(e.data.buttons) ? e.data.buttons : []);
+      padWanted = Boolean(e.data.show);
+      showPad();
+    });
+    // A key held as the page goes out of sight would stay down in the game.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pad.letGoOfEverything(); });
+
+    // ---------- Start ----------
+
+    if (!versionId) return shell.fail('No game version was given.');
+    let info;
+    try {
+      const res = await fetch(`/api/mame/${encodeURIComponent(versionId)}`);
+      info = await res.json();
+      if (!res.ok) throw new Error(info.error || `The server answered ${res.status}`);
+    } catch (err) {
+      return shell.fail(err.message);
+    }
+    shell.setEngineName(info.engineName);
+
+    /** Fetches a file whole, telling `onBytes` how much has come in as it does. */
+    async function download(url, onBytes) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`The server answered ${res.status} for ${decodeURIComponent(url.split('/').pop())}`);
+      const reader = res.body.getReader();
+      const parts = [];
+      let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(value);
+        got += value.length;
+        onBytes(value.length);
+      }
+      const data = new Uint8Array(got);
+      let at = 0;
+      for (const part of parts) { data.set(part, at); at += part.length; }
+      return data;
+    }
+
+    // MAME's own build, then the system files (BIOS sets, devices, samples), then the game.
+    let wasmBinary;
+    const files = [];
+    try {
+      const wasmUrl = `/mame/engine/${encodeURIComponent(info.bundle)}.wasm`;
+      const head = await fetch(wasmUrl, { method: 'HEAD' });
+      const wasmTotal = Number(head.headers.get('Content-Length')) || 0;
+      if (head.status === 404) throw new Error('The browser version of MAME isn\'t installed. Run "npm run fetch-mame" on the server.');
+      let got = 0;
+      wasmBinary = await download(wasmUrl, (n) => shell.loading('engine', { got: (got += n), total: wasmTotal }));
+      for (const group of [info.files.filter((f) => f.system), info.files.filter((f) => !f.system)]) {
+        if (!group.length) continue;
+        const total = group.reduce((n, f) => n + f.size, 0);
+        let done = 0;
+        for (const file of group) {
+          const data = await download(file.url, (n) => shell.loading(file.system ? 'system' : 'game', { got: (done += n), total }));
+          files.push({ name: file.name, data });
+        }
+      }
+    } catch (err) {
+      return shell.fail(err.message);
+    }
+
+    player = MamePlayer.start({
+      shell,
+      info,
+      files,
+      wasmBinary,
+      scriptUrl: `/mame/engine/${encodeURIComponent(info.bundle)}.js`,
+      locateFile: (file) => `/mame/engine/${file}`,
+      // Kept in step with friends frame by frame, the page paces MAME itself (see
+      // /player/mame-netplay.js), so MAME doesn't hold itself to the clock as well.
+      extraArgs: mode === 'rollback' ? ['-nothrottle'] : [],
+      // A friend's copy runs the host's game: its high scores and settings aren't this player's to keep.
+      persist: !(together && !together.owner),
+      onStarted: () => {
+        showPad();
+        if (together) startTogether();
+      },
+      // Quitting in MAME's own menu (or Esc) is leaving the game, which the app does.
+      onQuit: () => { pad.setVisible(false); shell.tell({ type: 'exit', status: 0 }); },
+    });
+
+    // The app's bar closes the game with Leave.
+    window.addEventListener('message', async (e) => {
+      if (e.origin !== location.origin || e.data?.source !== 'app' || e.data.type !== 'leave') return;
+      pad.setVisible(false);
+      await player.leave();
+      shell.tell({ type: 'left' });
+    });
+  })();
+  </script>
+</body>
+</html>

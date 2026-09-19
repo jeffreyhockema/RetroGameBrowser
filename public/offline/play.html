@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../fonts/inter.css">
+  <link rel="stylesheet" href="shell.css">
+</head>
+<!-- The bar sits above the game rather than over it: EmulatorJS puts its own menu button in
+     the same corner, and DOSBox's mouse coordinates follow the canvas wherever it is. -->
+<body class="player-with-bar">
+  <div class="player-bar" id="bar" hidden>
+    <p class="player-title"><strong id="bar-title"></strong> <span id="bar-version"></span></p>
+    <span class="player-spacer"></span>
+    <button type="button" class="player-button" id="bar-mouse" aria-pressed="false" hidden>Lock mouse</button>
+    <button type="button" class="player-button" id="bar-keys" aria-pressed="false" hidden>Type on the keyboard</button>
+    <button type="button" class="player-button" id="bar-full">Full screen</button>
+    <button type="button" class="player-button" id="bar-back">Leave game</button>
+  </div>
+
+  <div class="player-stage">
+    <!-- One of these is used, depending on which engine the game needs. -->
+    <canvas id="canvas" tabindex="-1" hidden oncontextmenu="event.preventDefault()" aria-label="Game screen"></canvas>
+    <div id="dos"></div>
+    <div id="game"></div>
+  </div>
+
+  <!-- The one card every platform loads behind (see shell.js). -->
+  <div class="player-note" id="player-note" role="status" aria-live="polite" hidden>
+    <h3 id="player-note-title"></h3>
+    <div class="player-note-bar" id="player-note-bar" hidden><div class="player-note-fill" id="player-note-fill"></div></div>
+    <p id="player-note-text" hidden></p>
+    <div class="player-note-ways" id="player-note-ways" hidden></div>
+  </div>
+
+  <!-- ScummVM's own download box: its build writes into these by name, and the shell reads
+       them back out onto the card above. Never shown (see shell.css). -->
+  <div id="download-modal" aria-hidden="true">
+    <div id="download-modal-title"><h3></h3></div>
+    <div id="download-modal-content">
+      <div id="download-modal-progress"><div id="download-modal-progress-fill"></div></div>
+      <p id="download-modal-progress-text"></p>
+      <p id="download-modal-speed-text"></p>
+    </div>
+  </div>
+
+  <script src="shell.js"></script>
+  <script src="emulatorjs-fixes.js"></script>
+  <script src="mame-player.js"></script>
+  <script src="launch.js"></script>
+  <script src="runtime.js"></script>
+</body>
+</html>

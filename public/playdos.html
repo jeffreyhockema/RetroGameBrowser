@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/player/shell.css">
+  <link rel="stylesheet" href="/js-dos/js-dos.css">
+  <link rel="stylesheet" href="/player/touch-buttons.css">
+</head>
+<body>
+  <div class="player-stage">
+    <div id="dos"></div>
+  </div>
+
+  <!-- Playing with a friend: the steps eXo wrote for this game's own network menus. It sits
+       over the game until the player puts it away, because the emulator can't do this part. -->
+  <aside class="ipx-steps" id="ipx-steps" hidden>
+    <h3 id="ipx-steps-title">Starting the game together</h3>
+    <ol id="ipx-steps-list"></ol>
+    <p class="ipx-steps-note" id="ipx-steps-note"></p>
+    <button type="button" id="ipx-steps-close">Got it</button>
+  </aside>
+
+  <!-- The one card every platform loads behind (see /player/shell.js). -->
+  <div class="player-note" id="player-note" role="status" aria-live="polite" hidden>
+    <h3 id="player-note-title"></h3>
+    <div class="player-note-bar" id="player-note-bar" hidden><div class="player-note-fill" id="player-note-fill"></div></div>
+    <p id="player-note-text" hidden></p>
+    <div class="player-note-ways" id="player-note-ways" hidden></div>
+  </div>
+
+  <script>
+  // js-dos locks the keyboard for full screen, which browsers only allow to a top-level page;
+  // inside the app's frame that would just log an error.
+  if (window.parent !== window && navigator.keyboard?.lock) navigator.keyboard.lock = () => Promise.resolve();
+  </script>
+  <script src="/player/shell.js"></script>
+  <script src="/player/touch-buttons.js"></script>
+  <script src="/js-dos/js-dos.js"></script>
+  <script>
+  (async () => {
+    const query = new URLSearchParams(location.search);
+    const versionId = query.get('v');
+    // Playing a DOS game with a friend (see server/lib/ipx.js). The room is in the fragment, so
+    // the key that says "this page is the host" never reaches the server in a request line.
+    const invite = new URLSearchParams(location.hash.slice(1));
+    const room = invite.get('mode') === 'ipx' && invite.get('room') ? {
+      code: invite.get('room'),
+      key: invite.get('key') ?? '',
+    } : null;
+    // The host starts the IPX server inside DOSBox; everyone else looks the host up by name.
+    const role = !room ? null : room.key ? 'host' : 'join';
+    // The name the host registers for its friends to find. It must not read as a number:
+    // js-dos takes a numeric address for a peer id instead of a name (see server/lib/ipx.js).
+    const IPX_HOST_ALIAS = 'host';
+    let iceServers = [];
+    const shell = PlayerShell.init({ engineName: 'DOSBox' });
+    shell.gettingReady();
+
+    /** Downloads a URL into memory, saying how far along it is. */
+    async function download(url, what, expected = 0) {
+      const res = await fetch(url, { cache: expected > 64 * 1048576 ? 'no-store' : 'default' });
+      if (!res.ok) throw new Error(`${url.split('/').pop()}: the server answered ${res.status}`);
+      const total = Number(res.headers.get('Content-Length')) || expected;
+      const reader = res.body.getReader();
+      // Written straight into one buffer of the size the server gave, so a big game isn't held
+      // twice over (as pieces and as the whole); only a size that turns out wrong falls back
+      // to collecting the pieces.
+      let whole = total ? new Uint8Array(total) : null;
+      const chunks = [];
+      let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (whole && got + value.length <= whole.length) whole.set(value, got);
+        else {
+          if (whole) chunks.push(whole.subarray(0, got));
+          whole = null;
+          chunks.push(value);
+        }
+        got += value.length;
+        shell.loading(what, { got, total });
+      }
+      if (whole) return got === whole.length ? whole : whole.slice(0, got);
+      const out = new Uint8Array(got);
+      let offset = 0;
+      for (const c of chunks) { out.set(c, offset); offset += c.length; }
+      return out;
+    }
+
+    // ---------- Saved files: the game's own save files, kept in this browser ----------
+
+    const DB = { name: 'rgb-dos-saves', store: 'changes' };
+    // Set when the earlier saves couldn't be read. Storing this session's files would then
+    // replace them, so nothing is stored until the next start.
+    let loadFailed = false;
+    // The app is told about a save problem once per session, not at every 90-s save.
+    let warned = false;
+    const warnOnce = (line) => {
+      if (warned) return;
+      warned = true;
+      shell.tell({ type: 'saved', tone: 'error', line });
+    };
+    function openDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB.name, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(DB.store);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    async function loadChanges(key) {
+      try {
+        const db = await openDb();
+        return await new Promise((resolve, reject) => {
+          const req = db.transaction(DB.store).objectStore(DB.store).get(key);
+          req.onsuccess = () => resolve(req.result ?? null);
+          req.onerror = () => reject(req.error);
+        });
+      } catch (err) {
+        console.warn('No saved files could be read', err);
+        loadFailed = true;
+        return null;
+      }
+    }
+    async function storeChanges(key, bytes) {
+      const db = await openDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(DB.store, 'readwrite');
+        tx.objectStore(DB.store).put(bytes, key);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        // A write that fails as it commits (storage full, say) only aborts the transaction.
+        tx.onabort = () => reject(tx.error ?? new Error('The browser stopped the save'));
+      }).finally(() => db.close());
+    }
+
+    // A Windows 9x game's saves are the changes to its hard disk, which the emulator reads from
+    // the server (a "sockdrive"; see server/lib/win9x.js). js-dos gives those as one list of
+    // [URL length][URL][changes length][changes] for every disk: only the game's disk is kept,
+    // so Windows starts fresh each time, as it does in eXo. Stored without the origin, which
+    // differs between the local network and a tunnel.
+    function sockdriveChanges(bytes) {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const found = [];
+      for (let at = 0; at + 4 <= bytes.length;) {
+        const urlLength = view.getUint32(at, true);
+        const url = new TextDecoder().decode(bytes.subarray(at + 4, at + 4 + urlLength));
+        at += 4 + urlLength;
+        const length = view.getUint32(at, true);
+        found.push({ url, changes: bytes.slice(at + 4, at + 4 + length) });
+        at += 4 + length;
+      }
+      return found;
+    }
+    function sockdriveBundle(url, changes) {
+      const name = new TextEncoder().encode(url);
+      const out = new Uint8Array(8 + name.length + changes.length);
+      const view = new DataView(out.buffer);
+      view.setUint32(0, name.length, true);
+      out.set(name, 4);
+      view.setUint32(4 + name.length, changes.length, true);
+      out.set(changes, 8 + name.length);
+      return out;
+    }
+
+    let ci = null;
+    let saving = null;
+    let keepDisk = null; // a Windows 9x game's disk, whose changes are its saves
+    let savesKey = versionId;
+    let exited = false; // the emulator has ended (or the frame is closing): nothing more to save
+    /** Stores the files the game changed (its saves, configuration) in this browser. */
+    async function saveChanges() {
+      if (!ci || exited || loadFailed) return false;
+      if (saving) return saving;
+      saving = (async () => {
+        try {
+          // An emulator that has already gone never answers (the plain DOSBox build ends
+          // without warning), so the wait is capped and nothing is stored when it runs out.
+          let changes = await Promise.race([ci.persist(true), new Promise((resolve) => setTimeout(resolve, 5000, undefined))]);
+          if (changes === undefined) return false;
+          if (changes && keepDisk) {
+            // Nothing on the game's disk yet (a zip of the emulator's files instead, say): keep what was stored.
+            const isZip = changes[0] === 0x50 && changes[1] === 0x4b;
+            changes = isZip ? null : sockdriveChanges(changes).find((d) => new URL(d.url).pathname === keepDisk)?.changes ?? null;
+          }
+          if (changes) await storeChanges(savesKey, changes);
+          return Boolean(changes);
+        } catch (err) {
+          console.warn('Saving the game files failed', err);
+          warnOnce(`Couldn't keep this game's save files in this browser: ${err.message}`);
+          return false;
+        } finally {
+          saving = null;
+        }
+      })();
+      return saving;
+    }
+
+    // ---------- On-screen buttons, on a phone ----------
+
+    // The app says which buttons to show and which key each presses (see
+    // /player/touch-buttons.js), and whether they're wanted: on a phone, while its keyboard is
+    // away. They come up once the game is running, and press keys straight into DOSBox.
+    const pad = TouchButtons.create(document.body, { press: (key, down) => ci?.sendKeyEvent(key, down) });
+    let padWanted = false;
+    const showPad = () => pad.setVisible(padWanted && Boolean(ci) && !exited);
+    window.addEventListener('message', (e) => {
+      if (e.origin !== location.origin || e.data?.source !== 'app' || e.data.type !== 'touch-buttons') return;
+      pad.set(Array.isArray(e.data.buttons) ? e.data.buttons : []);
+      padWanted = Boolean(e.data.show);
+      showPad();
+    });
+    // A key held as the page goes out of sight would stay down in the game.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pad.letGoOfEverything(); });
+
+    // ---------- Start ----------
+
+    if (!versionId) return shell.fail('No game version was given.');
+    let info;
+    try {
+      const together = role ? `&multiplayer=${role}` : '';
+      const res = await fetch(`/api/dos/${encodeURIComponent(versionId)}?sound=${encodeURIComponent(query.get('sound') ?? '')}&backend=${encodeURIComponent(query.get('backend') ?? '')}${together}`);
+      info = await res.json();
+      if (!res.ok) throw new Error(info.error || `The server answered ${res.status}`);
+    } catch (err) {
+      return shell.fail(err.message);
+    }
+    // The room, asked for again just before the game starts: one that has ended (the host left,
+    // it waited too long, or the owner ended it) would leave a lone game that says it's hosting.
+    // Only a clear "no such room" stops it; a failed request goes on.
+    const ROOM_ENDED = 'This game has ended, or there was never one at this link.';
+    const roomInfo = async () => {
+      try {
+        const res = await fetch(`/api/netplay/rooms/${encodeURIComponent(room.code)}`, { cache: 'no-store' });
+        if (res.status === 404) return null;
+        return res.ok ? await res.json() : {};
+      } catch {
+        return {};
+      }
+    };
+    // The STUN/TURN servers the two browsers use to find a path to each other. Without them a
+    // connection can still be made on the same network, so a failure here isn't fatal.
+    if (room) {
+      const found = await roomInfo();
+      if (!found) return shell.fail(ROOM_ENDED, { heading: 'The game has ended' });
+      iceServers = found.iceServers ?? [];
+    }
+    shell.setEngineName(info.backend === 'dosboxX' ? 'DOSBox-X' : 'DOSBox');
+    // A Windows 9x game's disks are read from the server by whole URL; its saves belong to the
+    // copy of the game's disk they were made on (the URL changes when that does).
+    if (info.originPlaceholder) info.conf = info.conf.replaceAll(info.originPlaceholder, location.origin);
+    if (info.keepDisk) {
+      keepDisk = info.keepDisk;
+      savesKey = `${versionId}|${keepDisk}`;
+    }
+
+    // A Windows 3.x game is installed in a folder rather than zipped, so the server copies it
+    // into its cache first; a Windows 9x game's zip is unpacked there. That takes a while the
+    // first time (the games drive is slow) and is instant afterwards.
+    if (info.prepareUrl) {
+      shell.gettingReady(keepDisk ? 'Unpacking it on the server. This happens once.' : 'Copying it on the server. This happens once.');
+      try {
+        // The server answers within a while either way (a tunnel won't wait minutes for one
+        // answer): 202 means it's still copying, so ask again.
+        let res;
+        let answer;
+        do {
+          res = await fetch(info.prepareUrl);
+          answer = await res.json().catch(() => ({}));
+        } while (res.status === 202);
+        if (!res.ok || !answer.ready) throw new Error(answer.error || `The server answered ${res.status}`);
+        if (answer.bytes) info.bundleSize = answer.bytes;
+      } catch (err) {
+        return shell.fail(`The server couldn't get the game ready: ${err.message}`);
+      }
+    }
+
+    let initFs;
+    try {
+      const bundle = await download(info.bundleUrl, 'game', info.bundleSize);
+      let saved = await loadChanges(savesKey);
+      if (saved && keepDisk) saved = sockdriveBundle(`${location.origin}${keepDisk}`, saved);
+      if (loadFailed) warnOnce('Couldn\'t read this game\'s save files in this browser, so this session\'s saves won\'t be kept and the earlier ones stay as they were.');
+      const files = [];
+      // Files are written (with their folders) before the zip is unpacked, so an empty file
+      // creates a folder the zip needs but can't create itself.
+      for (const dir of info.folders ?? []) files.push({ path: `${dir}/.keep`, contents: new Uint8Array(0) });
+      // MT-32 ROMs or a soundfont, where the music needs them: the system files, as a console
+      // BIOS is on the other platforms.
+      for (const f of info.files ?? []) files.push({ path: f.path, contents: await download(f.url, 'system') });
+      initFs = [...files, bundle, ...(saved ? [saved] : [])];
+    } catch (err) {
+      return shell.fail(err.message);
+    }
+
+    shell.starting();
+    const recent = [];
+    window.playerLog = recent; // for reading from the console
+    let started = false;
+    let startedAt = 0;
+
+    /**
+     * Tells the app the emulator has ended. Ending within seconds of the start means the game
+     * couldn't run (its start-up commands failed), so the app is told why instead.
+     */
+    const tellEnded = () => {
+      showPad();
+      if (Date.now() - startedAt < 5000) {
+        const last = recent.map((l) => String(l).trim()).filter(Boolean).at(-1);
+        shell.fail(`The game ended as soon as it started${last ? ` (last output: ${last})` : ''}.`);
+      }
+      shell.tell({ type: 'exit', status: 0 });
+    };
+
+    /**
+     * Shows what the player still has to do by hand. Neither emulator can drive a 1995 game's
+     * own network menus, so eXo's instructions for this game (from its network.bat, see
+     * server/lib/netbat.js) are put on screen beside it.
+     */
+    function showSteps() {
+      const panel = document.getElementById('ipx-steps');
+      const list = document.getElementById('ipx-steps-list');
+      const note = document.getElementById('ipx-steps-note');
+      const steps = info.multiplayer?.steps ?? [];
+      document.getElementById('ipx-steps-title').textContent = role === 'host'
+        ? 'You are hosting: start the game together'
+        : "You joined: get into your friend's game";
+      for (const step of steps) list.append(Object.assign(document.createElement('li'), { textContent: step }));
+      note.textContent = !info.multiplayer?.guided
+        ? 'This game has network play, but eXo left no instructions for it: look for a network or multiplayer option in its own menus.'
+        : role === 'host'
+          ? 'The game waits for a key press first, so give your friends a moment to load it.'
+          : 'If the game is already waiting, press a key to go on.';
+      document.getElementById('ipx-steps-close').onclick = () => { panel.hidden = true; };
+      panel.hidden = false;
+    }
+
+    if (room && !(await roomInfo())) return shell.fail(ROOM_ENDED, { heading: 'The game has ended' });
+    const startLocked = query.has('capture') ? query.get('capture') === '1' : Boolean(info.mouseLock);
+    const props = Dos(document.getElementById('dos'), {
+      dosboxConf: info.conf,
+      initFs,
+      pathPrefix: '/js-dos/emulators/',
+      backend: info.backend,
+      backendLocked: true,
+      workerThread: true,
+      // Render in the page, not through a canvas handed to the worker: that path crashed the
+      // emulator and left old frames under new ones.
+      offscreenCanvas: query.get('offscreen') === '1',
+      autoStart: true,
+      kiosk: true,
+      imageRendering: 'pixelated',
+      renderAspect: info.aspect ? '4/3' : 'AsIs',
+      renderBackend: query.get('render') === 'canvas' ? 'canvas' : 'webgl',
+      // The mouse is locked to the game only when its conf asks for that (games that steer
+      // with it); the app's Lock mouse button changes it. Unlocked, the pointer moves freely
+      // and games with their own cursor follow it.
+      mouseCapture: startLocked,
+      noCursor: false,
+      theme: 'night',
+      volume: 1,
+      // Saves are handled here, not by js-dos (its local storage needs a bundle URL).
+      fsChanges: { local: false },
+      // Playing with a friend: js-dos carries the game's IPX packets between the players over
+      // WebRTC, and this app introduces the browsers to each other (see server/lib/ipx.js).
+      // The host runs the IPX server inside DOSBox; everyone else connects to it by the name
+      // the host registers once it's running ("host", which mustn't look like a peer id).
+      ...(room ? {
+        startIpxServer: role === 'host',
+        connectIpxAddress: role === 'host' ? undefined : IPX_HOST_ALIAS,
+        net: {
+          peerServer: `${location.origin.replace(/^http/, 'ws')}/api/ipx?room=${encodeURIComponent(room.code)}${room.key ? `&host=${encodeURIComponent(room.key)}` : ''}`,
+          token: 'retro-game-browser',
+          secret: 'ipx',
+          iceServers: async () => iceServers,
+        },
+      } : {}),
+      onEvent(event, arg) {
+        if (event === 'ci-ready') {
+          ci = arg;
+          started = true;
+          startedAt = Date.now();
+          shell.playing();
+          showPad();
+          shell.tell({ type: 'mouse', on: startLocked });
+          // The host takes the name its friends are already asking for; their emulators poll
+          // for it until it appears, so registering late is fine.
+          if (role === 'host') {
+            Promise.resolve(ci.net()?.registerAlias(IPX_HOST_ALIAS))
+              .catch((err) => console.warn('Could not register the room name:', err?.message ?? err));
+          }
+          if (room) showSteps();
+          ci.events().onStdout((line) => {
+            recent.push(line);
+            if (recent.length > 60) recent.shift();
+          });
+          ci.events().onMessage((kind, ...args) => {
+            const line = args.join(' ');
+            if (kind === 'error' || kind === 'panic') {
+              console.error(line);
+              // The emulator itself failed (not the DOS program): tell the app.
+              if (/panic|abort|unreachable|out of memory|Unable to extract/i.test(line)) shell.stopped(line);
+            }
+          });
+          // The game quit and DOSBox-X is ending. Its worker stays alive until this finishes, so
+          // it's the last chance to store the game's files. (js-dos only reports an exit the
+          // page asked for itself, never one the emulator starts.)
+          ci.events().onUnload(async () => {
+            await saveChanges();
+            exited = true;
+            tellEnded();
+          });
+          // A fallback for exits the page starts itself; after "leave" it stays quiet.
+          ci.events().onExit(() => {
+            if (exited) return;
+            exited = true;
+            tellEnded();
+          });
+        } else if (event === 'emu-error' || event === 'bnd-error') {
+          shell.fail(String(arg ?? 'The emulator could not be loaded.'));
+        }
+      },
+    });
+
+    // Anything js-dos reports before the engine is up means the game can't start. js-dos never
+    // sends 'emu-error' or 'bnd-error' to onEvent: such a failure only shows in its own error
+    // window (out of sight in kiosk mode), whose message is the one red line. js-dos 8.4.1's
+    // class name; on a later version this just finds nothing.
+    const watch = setInterval(() => {
+      if (started || exited) return clearInterval(watch);
+      const said = document.querySelector('#dos .text-red-400')?.textContent?.trim().replace(/^"|"$/g, '');
+      if (said) {
+        clearInterval(watch);
+        shell.fail(said);
+      }
+    }, 1000);
+
+    // Save the game's files now and then, and when the app says we're leaving.
+    setInterval(() => { if (started && !exited && !document.hidden) saveChanges(); }, 90000);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) saveChanges(); });
+    window.addEventListener('message', async (e) => {
+      if (e.origin !== location.origin || e.data?.source !== 'app') return;
+      // The app's Lock mouse button: pointer lock for games that turn the view with the mouse.
+      // Off by default, so games with their own cursor (and keyboard games) aren't covered by
+      // js-dos's "Click to capture mouse" overlay.
+      if (e.data.type === 'mouse-lock') {
+        props.setMouseCapture(Boolean(e.data.on));
+        shell.tell({ type: 'mouse', on: Boolean(e.data.on) });
+        return;
+      }
+      if (e.data.type === 'leave') {
+        // Returns at once when the emulator has already ended (its files were stored then).
+        await saveChanges();
+        exited = true; // the frame is closing: no more saves, and no "exit" after "left"
+        shell.tell({ type: 'left' });
+        try { await props.stop(); } catch { /* the frame is about to go away */ }
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

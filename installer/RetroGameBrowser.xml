@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WinSW service descriptor for Retro Game Browser (https://github.com/winsw/winsw).
+
+  A template: service\install-service.ps1 copies it next to RetroGameBrowser.exe (WinSW, renamed
+  so the Services list shows a sensible program) with @DATA_DIR@ filled in. WinSW reads the copy
+  every time the service starts, so a change to the program, its arguments or its environment
+  needs only a restart; the account, start mode and failure actions are set when the service is
+  installed. %BASE% is the folder RetroGameBrowser.exe is in.
+
+  Service runtime:
+    Account: NT AUTHORITY\LocalService, the built-in low-privilege account, until the owner
+      chooses a Windows account of their own (Start menu, "Run the service as a Windows
+      account"), which a LaunchBox in a user folder or on a network share needs.
+    Data: RGB_DATA_DIR is where the server writes its config, userdata, cache and logs
+      (see server/lib/datadir.js); the program folder stays read-only.
+    Logs: the server writes its own, a file a day in the data folder's logs (see
+      server/lib/logfile.js). WinSW keeps what the last run printed, in logs\service, for a
+      server that fails before it gets that far.
+    Stopping: WinSW sends Ctrl+C, so the games being played are ended and their time kept.
+    On failure: restart after 3 seconds, then 10, then every minute (a LaunchBox on a network
+      share that isn't up yet when the PC starts, say). The count resets after an hour. The
+      server also exits on purpose, with code 75, to be restarted: after the admin page changes
+      the LaunchBox folder.
+
+  XML comments can't hold two hyphens in a row, so none are used here.
+-->
+<service>
+  <id>RetroGameBrowser</id>
+  <name>Retro Game Browser</name>
+  <description>Serves your LaunchBox game collection to browsers on this PC and your network, and plays the games in them.</description>
+
+  <executable>%BASE%\node\node.exe</executable>
+  <arguments>"%BASE%\server\start.js"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <env name="RGB_DATA_DIR" value="@DATA_DIR@" />
+  <env name="NODE_ENV" value="production" />
+
+  <serviceaccount>
+    <username>NT AUTHORITY\LocalService</username>
+    <allowservicelogon>true</allowservicelogon>
+  </serviceaccount>
+
+  <onfailure action="restart" delay="3 sec" />
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>15 sec</stoptimeout>
+
+  <log mode="reset" />
+  <logpath>@DATA_DIR@\logs\service</logpath>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+</service>

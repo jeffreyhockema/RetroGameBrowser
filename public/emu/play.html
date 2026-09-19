@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/player/shell.css">
+</head>
+<body>
+  <div class="player-stage">
+    <div id="game"></div>
+  </div>
+
+  <!-- The one card every platform loads behind (see /player/shell.js). -->
+  <div class="player-note" id="player-note" role="status" aria-live="polite" hidden>
+    <h3 id="player-note-title"></h3>
+    <div class="player-note-bar" id="player-note-bar" hidden><div class="player-note-fill" id="player-note-fill"></div></div>
+    <p id="player-note-text" hidden></p>
+    <div class="player-note-ways" id="player-note-ways" hidden></div>
+  </div>
+
+  <script src="/player/shell.js"></script>
+  <script src="/player/emulatorjs-fixes.js"></script>
+  <script src="/player/netplay-fixes.js"></script>
+  <script src="/player/netplay-stream.js"></script>
+  <script>
+  (async () => {
+    const query = new URLSearchParams(location.search);
+    const versionId = query.get('v');
+    const shell = PlayerShell.init();
+    shell.gettingReady();
+
+    // Playing with a friend, through EmulatorJS's own netplay (see server/lib/netplay.js): the
+    // room is named in the URL's fragment, which never reaches the server. The app's player
+    // hosts it (room and key); the friend's page (public/js/join.js) joins it (join and name).
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const netplayRole = hash.get('room') ? { owner: true, code: hash.get('room'), key: hash.get('key') ?? '', name: hash.get('name') || 'The host' }
+      : hash.get('join') ? { owner: false, code: hash.get('join'), name: hash.get('name') || 'A friend' }
+      : null;
+    // How the game is played together: rollback or lockstep (everyone runs it, see
+    // netplay-fixes.js; rollback runs the core on its own terms, decided before it starts) or
+    // stream (only the host runs it and sends video, see netplay-stream.js, which has to
+    // catch the core's audio as it's made).
+    if (netplayRole) netplayRole.mode = ['rollback', 'stream'].includes(hash.get('mode')) ? hash.get('mode') : 'lockstep';
+    if (netplayRole) forwardPostMainLoop();
+    if (netplayRole?.mode === 'stream' && netplayRole.owner) NetplayStream.captureAudio();
+
+    /**
+     * EmulatorJS's netplay counts frames in Module.postMainLoop, which it sets once a room is
+     * joined. The core takes that hook only as it starts up, so it's given one here that calls
+     * whatever EmulatorJS puts there later. The core's script assigns the global EJS_Runtime,
+     * which this catches and wraps.
+     */
+    function forwardPostMainLoop() {
+      let runtime;
+      Object.defineProperty(window, 'EJS_Runtime', {
+        configurable: true,
+        get: () => runtime && ((options) => {
+          // The options object becomes the core's Module, so what EmulatorJS sets later is read
+          // from the same object.
+          const forward = () => {
+            const hook = options.postMainLoop;
+            if (typeof hook === 'function' && hook !== forward) hook();
+          };
+          options.postMainLoop = forward;
+          // And before each iteration: a hook that answers false skips it (rollback's pacing).
+          options.preMainLoop = () => {
+            const hook = options.rgbPreMainLoop;
+            return typeof hook === 'function' ? hook() : undefined;
+          };
+          return runtime(options);
+        }),
+        set: (fn) => { runtime = fn; },
+      });
+    }
+
+    // A number for the game, which EmulatorJS's room list files rooms under. Its settings key
+    // is left alone (it takes EJS_gameID into it, and that would move every game's settings).
+    const gameNumber = (id) => [...String(id)].reduce((n, c) => ((n * 31) + c.charCodeAt(0)) >>> 0, 7);
+
+    const NETPLAY_ERRORS = {
+      ROOM_FULL: 'This game is full: every controller is taken.',
+      NO_SUCH_ROOM: 'This game has ended, or there was never one at this link.',
+      NOT_THE_HOST: 'This page isn\'t the host of the game.',
+      ROOM_ALREADY_OPEN: 'This game is already being hosted from another page.',
+    };
+
+    /**
+     * Opens or joins the room, with EmulatorJS's netplay doing the playing: the owner sends a
+     * save state to each friend who joins and then every frame's inputs; a friend sends theirs
+     * back. EmulatorJS defines those functions when its Netplay menu is first opened, so the
+     * menu is opened and put away again (the app's bar is the way in), and its question for
+     * a name is answered from the link. The app is told who's in as that changes.
+     */
+    async function startNetplay() {
+      const ejs = window.EJS_emulator;
+      const { code, name, owner } = netplayRole;
+      // The STUN/TURN servers for the direct connections between the players (see
+      // netplay-fixes.js), from the room's record on the server.
+      const room = await fetch(`/api/netplay/rooms/${encodeURIComponent(code)}`).then((res) => res.json()).catch(() => ({}));
+      // The netplay client's server address, whose path is the socket.io namespace.
+      ejs.config.netplayUrl = `${location.origin}/api/netplay`;
+      const before = new Set(ejs.netplayMenu.children);
+      ejs.openNetplayMenu();
+      ejs.netplay.updateList.stop();
+      for (const el of ejs.netplayMenu.children) if (!before.has(el)) el.remove(); // its "Set Player Name" box
+      ejs.netplayMenu.style.display = 'none';
+      const np = ejs.netplay;
+      np.name = name;
+      // EmulatorJS's own frame sync is broken (its source says so); this puts a working one
+      // in its place (see /player/netplay-fixes.js) before the room is opened or joined. It
+      // measures how the game is going for each player, which the bars show.
+      let stats = null;
+      const engineOptions = {
+        mode: netplayRole.mode, fps: info.fps, iceServers: room.iceServers ?? [],
+        room: { code, title: shell.gameTitle(), name, owner },
+        onStats: (latest) => { stats = latest; report(); },
+      };
+      window.netplayFixes = netplayRole.mode === 'stream' ? NetplayStream.host(ejs, engineOptions) : NetplayFixes.lockstep(ejs, engineOptions);
+
+      let syncing = false;
+      let told = null;
+      const report = (extra = {}) => {
+        const ids = Object.keys(np.players ?? {});
+        const message = {
+          type: 'netplay',
+          owner,
+          player: ids.indexOf(np.playerID) + 1,
+          guests: ids.slice(1).map((id, i) => ({ player: i + 2, name: np.players[id]?.player_name ?? 'A friend', state: 'playing', stats: stats?.guests?.[i + 2] ?? null })),
+          syncing,
+          stats: stats && { mode: stats.mode, lag: stats.lag, ping: stats.ping, delay: stats.delay, ahead: stats.ahead, stalls: stats.stalls, stalled: stats.stalled, transport: stats.transport, resyncs: stats.resyncs, rollbacks: stats.rollbacks, rollbackFrames: stats.rollbackFrames, source: stats.source, audio: stats.audio },
+          ...extra,
+        };
+        const same = JSON.stringify(message);
+        if (same === told) return;
+        told = same;
+        shell.tell(message);
+      };
+      // What EmulatorJS does as the room changes, with the app told each time.
+      const tableBase = np.updatePlayersTable;
+      np.updatePlayersTable = () => { tableBase(); report(); };
+      // EmulatorJS calls this when the socket drops, too, and its own version fails for a room
+      // that was never joined (it puts back menu styles only saved on joining): the app is told
+      // either way.
+      const leftBase = np.roomLeft;
+      let joinTimer = 0;
+      let leaving = false;
+      np.roomLeft = () => {
+        // Its own version disconnects the socket, whose 'disconnect' calls this again at once.
+        if (leaving) return;
+        leaving = true;
+        const joined = ejs.isNetplay;
+        clearTimeout(joinTimer);
+        try { leftBase(); } catch (err) { console.warn(err); } finally { leaving = false; }
+        report(joined ? { ended: true } : { error: 'Lost the connection to the server.' });
+      };
+      np.setLoading = (loading) => { syncing = Boolean(loading); report(); };
+
+      np.playerID = newId();
+      np.players = {};
+      np.extra = { domain: location.host, game_id: gameNumber(versionId), room_name: shell.gameTitle(), player_name: name, userid: np.playerID, sessionid: code };
+      np.players[np.playerID] = np.extra;
+      np.users = {};
+      const failed = (error) => report({ error: NETPLAY_ERRORS[error] ?? `Couldn't ${owner ? 'host' : 'join'} the game: ${error}` });
+      let tries = 0;
+      const join = () => np.socket.emit('join-room', { extra: np.extra }, (error, users) => {
+        // The friend's page may be up before the host's game has opened the room.
+        if (error === 'NO_SUCH_ROOM' && ++tries < 60) {
+          joinTimer = setTimeout(join, 3000);
+          return;
+        }
+        if (error) return failed(error);
+        np.players = users;
+        np.roomJoined(false, np.extra.room_name, '', code);
+      });
+      np.startSocketIO(() => {
+        if (!owner) return join();
+        np.socket.emit('open-room', { extra: np.extra, maxPlayers: 4, password: '', key: netplayRole.key }, (error) => {
+          if (error) return failed(error);
+          np.roomJoined(true, np.extra.room_name, '', code);
+        });
+      });
+      // socket.io keeps trying after a failed attempt (a tunnel's hiccup, say): the app is told
+      // once it has stopped, or after a few failures in a row.
+      let failures = 0;
+      np.socket.on('connect', () => { failures = 0; });
+      np.socket.on('connect_error', (err) => {
+        if (np.socket.active && ++failures < 5) return;
+        report({ error: `Couldn't reach the server: ${err.message}` });
+      });
+    }
+
+    // crypto.randomUUID is only there on a secure page, and the app is also used over plain
+    // http:// on the local network.
+    const newId = () => crypto.randomUUID?.() ?? [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+    let info;
+    try {
+      const res = await fetch(`/api/emu/${encodeURIComponent(versionId ?? '')}`);
+      info = await res.json();
+      if (!res.ok) throw new Error(info.error || `The server answered ${res.status}`);
+    } catch (err) {
+      return shell.fail(err.message);
+    }
+    // The core running this platform is the emulator by name on the card ("Loading Snes9x").
+    shell.setEngineName(info.coreName);
+
+    // A CD game packed as .7z is unpacked on the server the first time it's played, which
+    // takes a few seconds; afterwards it starts right away. If the server can't, the browser
+    // unpacks the archive itself (slower, and every time).
+    if (info.prepareUrl) {
+      shell.gettingReady('Unpacking it on the server. This happens once.');
+      try {
+        // The server answers within a while either way (a tunnel won't wait minutes for one
+        // answer): 202 means it's still unpacking, so ask again.
+        let res;
+        let answer;
+        do {
+          res = await fetch(info.prepareUrl);
+          // Reading the answer ends the request cleanly.
+          answer = await res.json().catch(() => ({}));
+        } while (res.status === 202);
+        if (!res.ok || !answer.unpacked) throw new Error();
+      } catch {
+        info.gameUrl += '?raw=1';
+      }
+    }
+
+    // What EmulatorJS says while it loads, and what it says when a game won't start, goes on
+    // the card instead, in the same words the other platforms use.
+    shell.watchEmulatorJS();
+
+    // EmulatorJS reads its settings from these globals when loader.js runs.
+    Object.assign(window, {
+      EJS_player: '#game',
+      EJS_core: info.core,
+      EJS_gameUrl: info.gameUrl,
+      EJS_gameName: info.gameName,
+      EJS_pathtodata: '/emu/data/',
+      EJS_startOnLoaded: true,
+      EJS_language: 'en-US',
+      EJS_disableAutoLang: true,
+      EJS_color: '#22d3ee',
+      EJS_backgroundColor: '#000',
+      EJS_volume: 0.8,
+      // Only small ROMs are worth keeping in the browser; CD images come from the server again.
+      EJS_CacheLimit: 64 * 1024 * 1024,
+      // EmulatorJS works the system out from the core name and gets it wrong for cores that
+      // serve several (Genesis Plus GX counts as a Master System), which gives the wrong
+      // controls and phone gamepad. The server says which system it is.
+      EJS_controlScheme: info.controlScheme,
+      EJS_defaultOptions: {
+        // Save states stay in the browser instead of being downloaded as files.
+        'save-state-location': 'browser',
+        // The in-game save reaches the browser's storage every minute, not every five.
+        'save-save-interval': '60',
+        // Core settings the platform needs, e.g. the Neo Geo boots as the home console.
+        ...info.coreOptions,
+      },
+      // The app's own bar has Leave game and Full screen.
+      EJS_Buttons: { exitEmulation: false, netplay: false },
+      EJS_ready: () => {
+        const fixes = window.EmulatorJSFixes; // see /player/emulatorjs-fixes.js
+        fixes.sortSavesByCore();
+        fixes.coreOptionsFromTheStart();
+        fixes.keepKeyboardWithTheGame();
+        fixes.quietMenu();
+        fixes.gamepadsInAnySlot();
+        fixes.controllerLayouts((query.get('layouts') ?? '').split(',').map(Number));
+        fixes.nameButtons(info.buttonNames);
+        // Rollback runs the core on its own terms (see netplay-fixes.js): no audio pacing.
+        if (netplayRole?.mode === 'rollback') NetplayFixes.audioSyncOff();
+        tellKeyboardMode();
+      },
+      EJS_onGameStart: () => {
+        shell.playing();
+        tellKeyboardMode();
+        // From the first frame, whether or not anyone has joined: the core's audio no longer
+        // keeps time, so this does.
+        if (netplayRole?.mode === 'rollback') NetplayFixes.pace(window.EJS_emulator, info.fps);
+        if (netplayRole && !window.EJS_emulator.isNetplay) {
+          // A friend runs the host's game, loaded from the host's save states, which carry the
+          // game's battery RAM: written out, it would replace the friend's own save for this
+          // game in this browser. So a friend's session writes no save files at all.
+          if (!netplayRole.owner) window.EJS_emulator.gameManager.saveSaveFiles = () => {};
+          startNetplay().catch((err) => shell.tell({ type: 'netplay', error: `Couldn't start playing together: ${err.message}` }));
+        }
+      },
+    });
+    if (info.biosUrl) {
+      window.EJS_biosUrl = info.biosUrl;
+      if (info.keepBiosZipped) window.EJS_dontExtractBIOS = true;
+    }
+
+    /**
+     * A computer's keyboard (the C64's), which its games use in two ways: most want the
+     * joystick, which the keys work through EmulatorJS's own mapping, and some want you to
+     * type or press a key. Keys work the joystick to start with and the app's bar switches
+     * them over; EmulatorJS keeps the choice with the game, so one switched to typing starts
+     * that way next time. Consoles have no keyboard and no button (`has` is false).
+     */
+    // Read straight from the settings rather than through getSettingValue, which throws
+    // until EmulatorJS has built its own menu (this is called before that, at EJS_ready).
+    const typingOn = () => window.EJS_emulator?.allSettings?.keyboardInput === 'enabled';
+    const tellKeyboardMode = () => shell.tell({ type: 'keyboard', has: Boolean(info.keyboard), on: typingOn() });
+    const setKeyboardMode = (on) => {
+      const ejs = window.EJS_emulator;
+      if (typeof ejs?.changeSettingOption !== 'function') return;
+      ejs.changeSettingOption('keyboardInput', on ? 'enabled' : 'disabled');
+      tellKeyboardMode();
+    };
+
+    const script = document.createElement('script');
+    script.src = '/emu/data/loader.js';
+    script.onerror = () => shell.fail('The browser emulators aren\'t installed. Run "npm run fetch-emulators" on the server.');
+    document.body.append(script);
+
+    // Writes the game's own save (battery RAM, memory card) and waits (up to 3 s) for it to
+    // reach the browser's storage.
+    function flushSaves() {
+      return new Promise((resolve) => {
+        const gm = window.EJS_emulator?.gameManager;
+        if (!window.EJS_emulator?.started || !gm || (netplayRole && !netplayRole.owner)) return resolve();
+        try {
+          gm.saveSaveFiles();
+          setTimeout(resolve, 3000);
+          gm.FS.syncfs(false, () => resolve());
+        } catch (err) {
+          console.warn('Saving the game failed', err);
+          resolve();
+        }
+      });
+    }
+
+    // What the app's bar asks for: the keyboard switch, and — before it closes this page —
+    // the game's save. Saves are also written whenever the page is hidden (a phone may close
+    // a hidden tab without warning).
+    window.addEventListener('message', async (e) => {
+      if (e.origin !== location.origin || e.data?.source !== 'app') return;
+      if (e.data.type === 'keyboard-mode') return setKeyboardMode(Boolean(e.data.on));
+      if (e.data.type !== 'leave') return;
+      await flushSaves();
+      shell.tell({ type: 'left' });
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) flushSaves(); });
+  })();
+  </script>
+</body>
+</html>

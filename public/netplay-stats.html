@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multiplayer stats</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <style>
+    /* The multiplayer stats page (see /js/netplay-stats.js): what every running game of this
+       site reports about itself once a second, and which build each side is running. Plain
+       and dense on purpose: it's for reading numbers while a game is going wrong. */
+    :root {
+      --dusk: #111f30; --dusk-deep: #0d1826; --line: #223549; --line-strong: #2f4760;
+      --ink: #e7eef6; --ink-muted: #93a6bb; --accent: #5cc4e0; --teal: #22d3ee; --alarm: #ff8f7a; --ok: #7be495;
+      color-scheme: dark;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; padding: 20px clamp(16px, 3vw, 40px) 60px; background: #0b1420; color: var(--ink); font: 400 14px/1.45 "Inter", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+    h1 { margin: 0 0 4px; font-size: 1.4rem; font-weight: 700; }
+    h2 { margin: 0 0 10px; font-size: 1.05rem; font-weight: 600; color: var(--accent); }
+    h3 { margin: 14px 0 6px; font-size: 0.9rem; font-weight: 600; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .lead { margin: 0 0 18px; color: var(--ink-muted); }
+    .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); align-items: start; }
+    .card { padding: 14px 16px 16px; background: var(--dusk); border: 1px solid var(--line-strong); border-radius: 10px; min-width: 0; }
+    .card.is-wide { grid-column: 1 / -1; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { padding: 4px 8px 4px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+    th { color: var(--ink-muted); font-weight: 500; white-space: nowrap; }
+    td.num { text-align: right; padding-right: 0; }
+    tr:last-child td, tr:last-child th { border-bottom: 0; }
+    .facts { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 0; }
+    .facts dt { color: var(--ink-muted); white-space: nowrap; }
+    .facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .ok { color: var(--ok); } .bad { color: var(--alarm); font-weight: 600; } .muted { color: var(--ink-muted); }
+    code, .mono { font-family: ui-monospace, Consolas, "Cascadia Mono", Menlo, monospace; font-size: 0.92em; }
+    .log { margin: 0; padding: 8px 10px; max-height: 260px; overflow: auto; background: var(--dusk-deep); border: 1px solid var(--line); border-radius: 6px; font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 0.8rem; white-space: pre-wrap; color: var(--ink-muted); }
+    .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 18px; }
+    button { font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--ink); background: var(--dusk); border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+    button:hover { color: var(--teal); border-color: var(--teal); }
+    .spark { display: inline-flex; gap: 1px; align-items: flex-end; height: 22px; vertical-align: middle; }
+    .spark i { display: inline-block; width: 3px; background: var(--accent); border-radius: 1px; }
+    .empty { padding: 30px; text-align: center; color: var(--ink-muted); border: 1px dashed var(--line-strong); border-radius: 10px; }
+    .stamp { font-size: 0.8rem; color: var(--ink-muted); }
+    .sessions tr.is-live td:first-child::before { content: "● "; color: var(--ok); }
+    .sessions button { padding: 3px 10px; font-size: 0.8rem; }
+    .chart { display: block; width: 100%; height: 190px; margin: 4px 0 2px; background: var(--dusk-deep); border: 1px solid var(--line); border-radius: 6px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 8px; font-size: 0.8rem; color: var(--ink-muted); }
+    .legend i { display: inline-block; width: 12px; height: 3px; margin-right: 6px; vertical-align: middle; border-radius: 2px; }
+    .events { max-height: 320px; }
+    .split { display: grid; gap: 12px 24px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+  </style>
+</head>
+<body>
+  <h1>Multiplayer stats</h1>
+  <p class="lead">What each game of this site that's open in this browser reports about itself, once a second, and which build each side is running. Keep this tab open next to the game.</p>
+  <div class="bar">
+    <button type="button" id="copy">Copy report</button>
+    <button type="button" id="recheck">Check the files again</button>
+    <span class="stamp" id="stamp"></span>
+  </div>
+  <div class="cards">
+    <section class="card is-wide" id="build">
+      <h2>Build</h2>
+      <p class="muted">Loading…</p>
+    </section>
+    <div class="card is-wide empty" id="waiting">No game is reporting yet. Start or join a game with a friend in another tab of this site; its numbers appear here within a second.</div>
+  </div>
+  <div class="cards" id="games"></div>
+  <div class="cards" style="margin-top: 16px">
+    <section class="card is-wide" id="sessions">
+      <h2>Sessions</h2>
+      <p class="muted">Loading…</p>
+    </section>
+    <section class="card is-wide" id="session" hidden></section>
+  </div>
+  <script type="module" src="/js/netplay-stats.js"></script>
+</body>
+</html>

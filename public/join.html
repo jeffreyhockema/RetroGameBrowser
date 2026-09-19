@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Join a game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/player/shell.css">
+  <style>
+    /* The friend's side of a game played together (see /js/join.js): the app's console player
+       in a frame, under the same bar the host has. */
+    .join-status { margin: 0 0 0 auto; min-width: 0; flex: 1; color: var(--ink-muted); font-size: 0.85rem; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .join-status.is-error { color: var(--alarm); }
+    .player-stage { background: #000; }
+    .player-stage iframe { width: 100%; height: 100%; border: 0; display: block; background: #000; }
+    /* The game's own box art behind the card, faint, as on its page in the app. */
+    .join-backdrop { position: absolute; inset: 0; background: center 30% / cover no-repeat; opacity: 0.3; mask-image: linear-gradient(to bottom, #000 35%, transparent); }
+    .player-note.is-join { bottom: auto; top: 50%; transform: translate(-50%, -50%); }
+    .player-note.is-join p { color: var(--ink); font-size: 0.95rem; }
+    .player-note.is-join .join-muted { color: var(--ink-muted); font-size: 0.85rem; }
+    .join-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; font-size: 0.9rem; color: var(--ink-muted); }
+    .join-name input { flex: 1; min-width: 8em; font: inherit; font-size: 0.95rem; color: var(--ink); background: var(--dusk-deep); border: 1px solid var(--line-strong); border-radius: 6px; padding: 6px 10px; }
+    .player-note-ways .is-main { color: #062a33; background: var(--teal); border-color: var(--teal); font-weight: 600; }
+    .player-note-ways .is-main:hover { background: #4ee1f7; }
+    @media (max-width: 560px) {
+      .join-status { display: none; }
+      .player-button[data-act="fullscreen"] { display: none; }
+    }
+  </style>
+</head>
+<body class="player-with-bar">
+  <div class="player-bar">
+    <p class="player-title"><strong id="bar-title">Join a game</strong> <span id="bar-player"></span></p>
+    <p class="join-status" id="bar-status" aria-live="polite"></p>
+    <button type="button" class="player-button" data-act="stats" title="Every number about this game, and which build this is, in a new tab">Stats</button>
+    <button type="button" class="player-button" data-act="fullscreen" hidden>Full screen</button>
+    <button type="button" class="player-button" data-act="leave" hidden>Leave game</button>
+  </div>
+
+  <div class="player-stage" id="stage">
+    <div class="join-backdrop" id="backdrop" aria-hidden="true"></div>
+    <!-- The game's frame goes in here once you join (see /js/join.js). -->
+  </div>
+
+  <!-- The card: who's inviting you, then how joining is going, then what ended it. -->
+  <div class="player-note is-join" id="card" role="status" aria-live="polite">
+    <h3 id="card-title">Loading…</h3>
+    <p id="card-text" hidden></p>
+    <p class="join-muted" id="card-note" hidden></p>
+    <div class="join-name" id="card-name" hidden>
+      <label for="name">Your name</label>
+      <input id="name" type="text" maxlength="40" autocomplete="nickname" placeholder="Player 2">
+    </div>
+    <div class="player-note-ways" id="card-ways" hidden></div>
+  </div>
+
+  <script type="module" src="/js/join.js"></script>
+</body>
+</html>

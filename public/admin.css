@@ -1,0 +1,189 @@
+/* The owner's admin page (see js/admin.js), in the app's own navy and teal (see app.css). Dense
+   and plain: it's for reading numbers and changing a few things, on a PC or a phone. */
+:root {
+  --night: #0b1522;
+  --dusk: #111f30;
+  --dusk-deep: #0d1826;
+  --line: #223549;
+  --line-strong: #2f4760;
+  --ink: #e7eef6;
+  --ink-muted: #93a6bb;
+  --accent: #5cc4e0;
+  --teal: #22d3ee;
+  --teal-ink: #062a33;
+  --sea: #7dd3fc;
+  --alarm: #ff8f7a;
+  --ok: #7be495;
+  /* The plays chart's two series, checked for colour-blind separation on --dusk. */
+  --series-signed-in: #3987e5;
+  --series-not-signed-in: #d95926;
+  --font: "Inter", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, Consolas, "Cascadia Mono", Menlo, monospace;
+  --gutter: clamp(16px, 2.5vw, 32px);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--night); }
+body { margin: 0; min-height: 100vh; background: var(--night); color: var(--ink); font: 400 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--sea); }
+button, input, select { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* ---------- Top ---------- */
+
+.admin-top { display: flex; align-items: center; gap: 14px; padding: 14px var(--gutter); background: var(--dusk); border-bottom: 1px solid var(--line); }
+.admin-top h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+.admin-back { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px 6px 6px; color: var(--ink); text-decoration: none; border: 1px solid var(--line-strong); border-radius: 999px; }
+.admin-back:hover { color: var(--teal); border-color: var(--teal); }
+.admin-back svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.admin-who { margin-left: auto; color: var(--ink-muted); font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 4px; padding: 8px var(--gutter); overflow-x: auto; background: var(--night); border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tabs a { flex: none; padding: 7px 14px; color: var(--ink-muted); text-decoration: none; border-radius: 999px; font-weight: 500; }
+.tabs a:hover { color: var(--ink); }
+.tabs a[aria-current="page"] { color: var(--teal-ink); background: var(--teal); }
+.badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--teal); color: var(--teal-ink); font-size: 0.72rem; font-weight: 700; line-height: 18px; text-align: center; }
+.tabs a[aria-current="page"] .badge { background: var(--teal-ink); color: var(--teal); }
+
+.admin-main { padding: 18px var(--gutter) 60px; max-width: 1400px; margin: 0 auto; }
+.gate { padding: 40px 20px; text-align: center; color: var(--ink-muted); }
+.gate h2 { color: var(--ink); }
+
+/* ---------- Cards, facts, tables ---------- */
+
+.panel > * + * { margin-top: 16px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); align-items: start; }
+.card { padding: 14px 16px 16px; background: var(--dusk); border: 1px solid var(--line-strong); border-radius: 12px; min-width: 0; }
+.card h2 { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
+.card .sub { margin: 0 0 12px; color: var(--ink-muted); font-size: 0.85rem; }
+.card > p { margin: 0 0 10px; }
+.muted { color: var(--ink-muted); }
+.bad { color: var(--alarm); }
+.good { color: var(--ok); }
+.mono { font-family: var(--mono); font-size: 0.9em; }
+.empty { margin: 0; padding: 16px; text-align: center; color: var(--ink-muted); border: 1px dashed var(--line-strong); border-radius: 8px; }
+
+.table-wrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 12px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
+th { color: var(--ink-muted); font-weight: 500; font-size: 0.8rem; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.line2 { display: block; color: var(--ink-muted); font-size: 0.8rem; }
+.nowrap { white-space: nowrap; }
+.clip { max-width: min(360px, 60vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+.facts dt { color: var(--ink-muted); }
+.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+.tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; background: var(--dusk-deep); border: 1px solid var(--line-strong); color: var(--ink-muted); white-space: nowrap; }
+.tag.is-on { color: var(--teal); border-color: var(--teal); }
+.tag.is-bad { color: var(--alarm); border-color: var(--alarm); }
+
+.meter { height: 6px; background: var(--dusk-deep); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.bar-cell { min-width: 90px; }
+
+/* ---------- Controls ---------- */
+
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 14px; background: var(--dusk-deep); border: 1px solid var(--line-strong); border-radius: 999px; color: var(--ink); cursor: pointer; text-decoration: none; font-weight: 500; white-space: nowrap; }
+.button:hover { border-color: var(--teal); color: var(--teal); }
+.button:disabled { opacity: 0.5; cursor: default; border-color: var(--line-strong); color: var(--ink); }
+.button.is-primary { background: var(--teal); border-color: var(--teal); color: var(--teal-ink); }
+.button.is-primary:hover { filter: brightness(1.08); color: var(--teal-ink); }
+.button.is-danger:hover { border-color: var(--alarm); color: var(--alarm); }
+.button.is-small { min-height: 28px; padding: 3px 11px; font-size: 0.8rem; }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+input[type="search"], input[type="email"], input[type="text"], select { min-height: 34px; padding: 5px 10px; background: var(--dusk-deep); border: 1px solid var(--line-strong); border-radius: 8px; }
+input[type="search"], input[type="email"], input[type="text"] { min-width: 0; }
+select { padding-right: 6px; }
+
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--dusk); border: 1px solid var(--line-strong); border-radius: 999px; }
+.segmented button { padding: 5px 12px; background: none; border: 0; border-radius: 999px; color: var(--ink-muted); cursor: pointer; font-weight: 500; }
+.segmented button:hover { color: var(--ink); }
+.segmented button[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.toolbar .grow { flex: 1 1 200px; }
+.stamp { color: var(--ink-muted); font-size: 0.8rem; }
+
+/* ---------- Overview ---------- */
+
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+.tile { padding: 12px 14px; background: var(--dusk); border: 1px solid var(--line-strong); border-radius: 12px; }
+.tile .label { margin: 0; color: var(--ink-muted); font-size: 0.8rem; font-weight: 500; }
+.tile .value { margin: 2px 0 0; font-size: 1.7rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.tile .detail { margin: 2px 0 0; color: var(--ink-muted); font-size: 0.8rem; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 8px; font-size: 0.8rem; color: var(--ink-muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: -1px; background: var(--swatch); }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 200px; overflow: visible; }
+.chart .grid-line { stroke: var(--line); stroke-width: 1; }
+.chart .axis-label { fill: var(--ink-muted); font-size: 11px; font-family: var(--font); }
+.chart .hit { fill: transparent; cursor: default; }
+.chart .hit:hover { fill: rgba(147, 166, 187, 0.08); }
+.tooltip { position: absolute; z-index: 3; pointer-events: none; padding: 7px 10px; background: var(--dusk-deep); border: 1px solid var(--line-strong); border-radius: 8px; font-size: 0.8rem; white-space: nowrap; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); }
+.tooltip b { display: block; margin-bottom: 2px; }
+.tooltip i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; }
+details.as-table { margin-top: 8px; }
+details.as-table summary { cursor: pointer; color: var(--ink-muted); font-size: 0.85rem; }
+details.as-table .table-wrap { max-height: 260px; overflow-y: auto; margin-top: 6px; }
+
+/* ---------- Accounts ---------- */
+
+.person { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.avatar { width: 32px; height: 32px; flex: none; border-radius: 50%; background: var(--dusk-deep); border: 1px solid var(--line-strong); object-fit: cover; display: grid; place-items: center; color: var(--ink-muted); font-weight: 600; font-size: 0.85rem; }
+.person .who { min-width: 0; }
+.person .who b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person .who span { display: block; color: var(--ink-muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decide { justify-content: flex-end; flex-wrap: nowrap; }
+.add-account { display: flex; flex-wrap: wrap; gap: 8px; }
+.add-account input { flex: 1 1 220px; }
+
+/* ---------- Server ---------- */
+
+.public-url { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.public-url input { flex: 1 1 260px; }
+
+/* ---------- Notice ---------- */
+
+.notice { position: fixed; left: 50%; bottom: 20px; z-index: 20; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; background: var(--dusk); border: 1px solid var(--teal); border-radius: 10px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45); }
+.notice.is-error { border-color: var(--alarm); }
+
+@media (max-width: 640px) {
+  .admin-top { gap: 10px; }
+  .admin-who { display: none; }
+  .hide-narrow { display: none; }
+  /* New sign-ins stack, so the buttons to decide with are on screen. */
+  .queue thead { display: none; }
+  .queue table, .queue tbody, .queue tr, .queue td { display: block; }
+  .queue tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .queue tr:last-child { border-bottom: 0; }
+  .queue td { padding: 3px 0; border: 0; text-align: left; }
+  .queue .decide { justify-content: flex-start; flex-wrap: wrap; margin-top: 4px; }
+}
+
+/* What the shelf shows by default: a checkbox per flag, its name, and what it does. */
+.checks { display: grid; gap: 14px; }
+.check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; line-height: 1.4; }
+.check input { margin: 3px 0 0; width: 18px; height: 18px; accent-color: var(--teal); flex: none; }
+.check .tag { margin-left: 8px; vertical-align: 1px; }
+.check .line2 { margin-top: 2px; font-size: 0.85rem; }
+
+/* Signing in (Accounts tab): Google's state, which the config sets, beside the switches. */
+.check.is-static { cursor: default; }
+.check.is-static .tag { flex: none; margin: 1px 0 0; min-width: 34px; text-align: center; }
+.owner-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.owner-form > p { margin: 0 0 10px; }
+.row-actions { justify-content: flex-end; flex-wrap: nowrap; }
+
+/* ---------- Server log ---------- */
+
+.log-lines { margin: 12px 0 0; max-height: 480px; overflow: auto; padding: 10px 12px; background: var(--dusk-deep); border: 1px solid var(--line); border-radius: 8px; font: 0.78rem/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }

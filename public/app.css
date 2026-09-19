@@ -1,0 +1,2018 @@
+/* Navy and teal, after the logo: a deep blue ground, panels a shade lighter, teal for the one
+   thing to press and for anything that's "on", gold for stars and favorites. */
+:root {
+  --night: #0b1522;        /* the page */
+  --dusk: #111f30;         /* bars, panels, cards */
+  --dusk-deep: #0d1826;    /* wells inside panels */
+  --line: #223549;
+  --line-strong: #2f4760;
+  --ink: #e7eef6;
+  --ink-muted: #93a6bb;
+  --accent: #5cc4e0;       /* labels, links, the quiet teal */
+  --accent-dim: #2b4a60;
+  --teal: #22d3ee;         /* the loud teal: Play, selection, what's on */
+  --teal-ink: #062a33;     /* text on a teal button */
+  --gold: #f6c343;         /* stars and favorites */
+  --sea: #7dd3fc;
+  --alarm: #ff8f7a;
+
+  --font: "Inter", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --gutter: clamp(16px, 2.5vw, 32px);
+  --topbar: 64px;
+  --sidebar: 236px;
+  /* The tallest a card's art is allowed to be, and so the tallest a row can get. Art this
+     tall or shorter runs the full width of its card; anything taller is scaled down to fit,
+     which leaves it a little narrower than the card. */
+  --tile-art: 180px;
+  color-scheme: dark;
+}
+
+/* How tall the dock is, which the page keeps clear under it (see wireDock in dock.js). Not
+   inherited: it's set on the two elements that use it, and a change then restyles only them
+   rather than the whole page. */
+@property --dock-height {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { background: var(--night); }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--night);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--font);
+  padding-bottom: var(--dock-height);
+  -webkit-font-smoothing: antialiased;
+}
+
+img { max-width: 100%; }
+a { color: var(--sea); }
+button, input, select { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+.muted { color: var(--ink-muted); }
+
+select, input[type="search"] {
+  background: var(--dusk-deep);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  min-height: 40px;
+}
+select { padding-right: 28px; max-width: 100%; }
+
+.link-button {
+  background: none; border: 0; padding: 0;
+  color: var(--sea); text-decoration: underline; cursor: pointer;
+}
+
+/* Small bordered controls (actions, player bar, lightbox). */
+.action, .player-button, .lightbox-close, .lightbox-nav, .dialog-close {
+  display: inline-flex;
+  align-items: center;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.3;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.action:hover, .player-button:hover, .player-button.is-armed, .lightbox-close:hover, .lightbox-nav:hover, .dialog-close:hover,
+.action[aria-pressed="true"] { color: var(--teal); border-color: var(--teal); }
+
+.play-button {
+  font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--teal-ink);
+  background: var(--teal);
+  border: 0;
+  border-radius: 10px;
+  padding: 16px 32px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px -10px rgb(34 211 238 / 0.7);
+}
+.play-button:hover { background: #5be3f6; }
+
+/* ---------- Top bar ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  /* The space between and around the three grows and shrinks with the window rather than in
+     steps, so the logo beside them does too. */
+  gap: clamp(8px, 2vw, 20px);
+  height: var(--topbar);
+  padding: 0 clamp(12px, 2.5vw, 32px);
+  background: var(--dusk);
+  border-bottom: 1px solid var(--line);
+}
+
+/* The logo is a wide banner (about 7.5:1, cropped to its dark plate), as tall as the bar
+   leaves room for and as wide as that makes it. When the window is too narrow for it and the
+   search box together, the search box gives way first, down to what still reads as a search
+   box, and only then does the logo shrink, keeping its shape, as smoothly as the window. */
+.brand { margin: 0; line-height: 0; flex: 0 1 auto; min-width: 0; }
+.brand a { display: block; border-radius: 6px; }
+.brand img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(var(--topbar) - 4px);
+}
+
+.search {
+  position: relative;
+  flex: 1 1 0;
+  /* Room for its icon and "Search" at a phone's 360px, 150px from about 700px up, in a line
+     between: the logo beside it gets the rest. */
+  min-width: clamp(100px, calc(100px + (100vw - 360px) * 0.15), 150px);
+  max-width: 480px;
+  margin-left: auto;
+}
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--accent);
+  pointer-events: none;
+}
+.field-search { display: block; }
+.field-search input {
+  width: 100%;
+  min-height: 40px;
+  padding-left: 38px;
+  border-radius: 999px;
+}
+.field-search input::placeholder { color: var(--ink-muted); opacity: 0.8; }
+
+/* ---------- Account: the profile menu ---------- */
+
+.account { position: relative; flex: none; display: flex; align-items: center; gap: 10px; }
+
+/* Google's button is an iframe with a light page. Under our dark color-scheme the browser paints
+   a mismatched iframe opaque — the white box around the pill — so let it keep its own scheme. */
+.login-google { min-height: 32px; color-scheme: light; }
+.profile-head .login-google { margin-top: 12px; min-height: 44px; }
+
+.profile-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--dusk-deep);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.profile-button svg { width: 24px; height: 24px; }
+.profile-button:hover, .profile-button[aria-expanded="true"] { color: var(--teal); border-color: var(--teal); }
+.profile-button.is-signed-in { border-width: 2px; border-color: var(--line-strong); }
+.profile-button.is-signed-in:hover, .profile-button.is-signed-in[aria-expanded="true"] { border-color: var(--teal); }
+.profile-avatar { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-initial { font-weight: 700; font-size: 1.05rem; color: var(--teal-ink); background: var(--accent); width: 100%; height: 100%; display: grid; place-items: center; }
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 55;
+  width: min(340px, calc(100vw - 24px));
+  max-height: calc(100vh - var(--topbar) - 16px);
+  overflow-y: auto;
+  padding: 6px 0;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px -12px #000;
+}
+/* Closed, but laid out so Google's sign-in button in it is ready when it opens (see prime in
+   js/settings.js): unseen, and inert so nothing in it can be reached. */
+.profile-menu.is-primed { opacity: 0; pointer-events: none; }
+
+.profile-group { padding: 6px 0; border-top: 1px solid var(--line); }
+
+.profile-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px 14px; }
+.profile-head-avatar { width: 44px; height: 44px; border-radius: 50%; flex: none; }
+.profile-who { min-width: 0; }
+.profile-signin { flex: 1; }
+.profile-name { margin: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-email { margin: 0; color: var(--ink-muted); font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-email.wraps { white-space: normal; }
+
+/* A filter: what it does and how many games it concerns, then its switch. */
+.switch-row { display: flex; align-items: center; gap: 14px; padding: 9px 16px; cursor: pointer; line-height: 1.35; }
+.switch-row:hover { background: var(--dusk-deep); }
+.switch-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.switch-help { color: var(--ink-muted); font-size: 0.84rem; }
+
+.switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.15s;
+}
+.switch:checked { background: var(--teal); }
+.switch:checked::after { transform: translateX(16px); background: var(--teal-ink); }
+
+.profile-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.profile-item svg { width: 20px; height: 20px; flex: none; color: var(--ink-muted); }
+.profile-item:hover { background: var(--dusk-deep); color: var(--teal); }
+.profile-item:hover svg { color: var(--teal); }
+.profile-item:focus-visible, .switch-row:has(.switch:focus-visible) { outline: 2px solid var(--teal); outline-offset: -2px; }
+.switch:focus-visible { outline: none; }
+
+.profile-status { margin: 0; padding: 0 16px; color: var(--ink-muted); font-size: 0.82rem; }
+.profile-status:not(:empty) { padding: 4px 16px 6px; }
+
+/* Signing in with a local account (or making one), in the menu and the Change password dialog. */
+/* "Sign in with Local Account": Google's large button's size and shape (see showGoogleButton),
+   so the two stack as a pair, with a key where Google's has its G. */
+.local-signin-button {
+  display: flex;
+  align-items: center;
+  width: 240px;
+  height: 40px;
+  margin-top: 10px;
+  padding: 0 12px 0 2px;
+  /* Google's dark button's own colours, taken from it. */
+  background: #202124;
+  border: 0;
+  border-radius: 20px;
+  color: #e8eaed;
+  font: 500 14px/1 "Google Sans", var(--font);
+  letter-spacing: 0.25px;
+  cursor: pointer;
+}
+.local-signin-button:hover { background: #2d2e31; }
+.local-signin-button > span:last-child { flex: 1; text-align: center; }
+.local-signin-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #fff; flex: none; }
+.local-signin-mark svg { width: 20px; height: 20px; }
+.profile-head .login-google + .local-signin-button { margin-top: 10px; }
+.local-form { display: grid; gap: 10px; margin-top: 12px; }
+.local-form .field { display: grid; gap: 4px; font-size: 0.88rem; color: var(--ink-muted); }
+.local-form .field input {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  background: var(--dusk-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+.local-form .field input:focus-visible { outline: 2px solid var(--teal); outline-offset: 0; border-color: var(--teal); }
+.form-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.form-submit {
+  min-height: 38px;
+  padding: 0 18px;
+  background: var(--teal);
+  border: 0;
+  border-radius: 999px;
+  color: var(--teal-ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+.form-submit:hover { background: #5be3f6; }
+.form-submit:disabled { opacity: 0.6; cursor: default; }
+.password-dialog .form-submit { justify-self: start; }
+.form-error { margin: 0; color: var(--alarm); font-size: 0.88rem; }
+.form-error:empty { display: none; }
+.form-note { margin: 0; color: var(--ink-muted); font-size: 0.85rem; line-height: 1.45; }
+.password-dialog { width: min(420px, calc(100vw - 24px)); }
+.password-dialog .dialog-head { margin-bottom: 4px; }
+
+/* ---------- Controllers dialog ---------- */
+
+.controllers-dialog {
+  width: min(480px, calc(100vw - 24px));
+  max-height: calc(100vh - 32px);
+  padding: 18px 20px 22px;
+  background: var(--dusk);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px -16px #000;
+}
+.controllers-dialog::backdrop { background: rgb(4 10 18 / 0.6); }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.dialog-head h2 { margin: 0; font-size: 1.3rem; font-weight: 700; }
+
+.setting-help { margin: 12px 0 0; color: var(--ink-muted); font-size: 0.9rem; line-height: 1.45; }
+
+/* Each player's controller layout: the player, then its two layouts as one switch. */
+.layout-rows { display: grid; gap: 10px; margin-bottom: 4px; }
+.layout-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.layout-player { min-width: 4.5em; font-weight: 500; }
+.layout-switch { display: flex; flex: 1; min-width: min(100%, 17rem); border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; }
+.layout-switch label { flex: 1; cursor: pointer; }
+.layout-switch label + label { border-left: 1px solid var(--line-strong); }
+.layout-switch span {
+  display: block;
+  padding: 7px 8px;
+  text-align: center;
+  font-size: 0.86rem;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  background: var(--dusk-deep);
+  transition: color 0.15s, background-color 0.15s;
+}
+.layout-switch label:hover span { color: var(--ink); }
+.layout-switch input:checked + span { color: var(--teal); background: rgb(34 211 238 / 0.14); font-weight: 600; }
+.layout-switch input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+/* What an account can't do isn't offered (see app.js): no stars without favorites of your own,
+   and nothing about running in the browser for someone who can't play. */
+body:not(.can-favorites) :is(.tile-star, .dock-fav) { display: none; }
+body:not(.can-play) :is(.tile-note, .dock-warning, .version-meta.is-warning) { display: none; }
+body:not(.can-play) .tile.is-broken .tile-art img { filter: none; }
+
+/* ---------- Shelf: sidebar and main column ---------- */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+
+.sidebar {
+  position: sticky;
+  top: var(--topbar);
+  align-self: start;
+  height: calc(100vh - var(--topbar));
+  overflow-y: auto;
+  padding: 14px 12px 24px;
+  background: var(--dusk);
+  border-right: 1px solid var(--line);
+  /* No scrollbar of its own: a hairline down the edge stands in for it (see .side-scroll
+     below, and sideScroll in js/shelf.js). Hiding it also gives the rows back its width. */
+  scrollbar-width: none;
+}
+.sidebar::-webkit-scrollbar { width: 0; height: 0; }
+
+/* How far down the list you are and how much of it fits, as a 1px line on the sidebar's edge.
+   Fixed rather than scrolled with the rows: the sidebar is pinned under the topbar and as tall
+   as what's left of the window, so the line is placed against the window and doesn't move
+   except when js/shelf.js sets these two. It's a mark to read, not a bar to drag. */
+.side-scroll {
+  position: fixed;
+  left: calc(var(--sidebar) - 4px);
+  top: calc(var(--topbar) + var(--side-scroll-top, 0px));
+  height: var(--side-scroll-height, 0px);
+  width: 1px;
+  border-radius: 1px;
+  background: var(--line-strong);
+  opacity: 0.5;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+.sidebar:hover .side-scroll, .sidebar:focus-within .side-scroll { opacity: 1; }
+
+.side-title {
+  margin: 20px 12px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.side-list { list-style: none; margin: 0; padding: 0; }
+.side-list + .side-title { padding-top: 12px; border-top: 1px solid var(--line); }
+
+.side-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+.side-item:hover { background: var(--dusk-deep); }
+.side-icon { transition: color 0.15s; }
+.side-item.is-on {
+  background: linear-gradient(90deg, rgb(34 211 238 / 0.18), rgb(34 211 238 / 0.04));
+  color: var(--teal);
+  box-shadow: inset 3px 0 0 var(--teal);
+}
+/* On as one of several: the menu holds this row along with others, so the shelf isn't only
+   about it and the mark is quieter. */
+.side-item.is-partly { background: rgb(34 211 238 / 0.06); box-shadow: inset 3px 0 0 var(--accent-dim); }
+.side-icon { width: 18px; height: 18px; flex: none; color: var(--accent); }
+/* A platform's icon from LaunchBox (24 pixels a side), the size of the drawn icons beside it. */
+.side-picture { width: 18px; height: 18px; flex: none; object-fit: contain; }
+.side-item.is-on .side-icon { color: var(--teal); }
+.side-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-count { flex: none; color: var(--ink-muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.side-item.is-on .side-count { color: inherit; opacity: 0.8; }
+.side-more { color: var(--ink-muted); font-size: 0.88rem; padding-left: 40px; }
+
+.main {
+  min-width: 0;
+  padding: 16px var(--gutter) 64px;
+}
+
+/* ---------- Which shelf is open ---------- */
+
+/* The heading over the shelf: a platform's own logo where LaunchBox has one, otherwise the
+   name of the list, with how many games it holds and the way back to all of them. */
+.scope-head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgb(34 211 238 / 0.1), transparent 55%),
+    linear-gradient(180deg, var(--dusk), var(--dusk-deep));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgb(231 238 246 / 0.05);
+}
+.scope-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+/* All games, with Random Game under it. */
+.scope-actions { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.scope-head:has(.scope-actions:empty) { padding-right: 18px; }
+.scope-title { margin: 0; font-size: 1.45rem; font-weight: 700; line-height: 1.15; }
+.scope-logo {
+  display: block;
+  width: auto;
+  height: 60px;
+  max-width: min(440px, 52vw);
+  object-fit: contain;
+  object-position: left center;
+}
+/* Platform logos are drawn for a dark shelf but vary a lot; a soft glow keeps the dark ones
+   from disappearing into the panel. */
+.scope-head.has-logo .scope-logo { filter: drop-shadow(0 0 10px rgb(0 0 0 / 0.55)); }
+.scope-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(160deg, rgb(34 211 238 / 0.14), rgb(13 24 38 / 0.9));
+  border: 1px solid rgb(34 211 238 / 0.3);
+  border-radius: 11px;
+  color: var(--teal);
+}
+.scope-mark .side-icon { width: 22px; height: 22px; color: inherit; }
+/* The whole library's emblem, about as tall as a platform's logo. */
+.scope-emblem { --emblem-h: 60px; display: block; flex: none; height: var(--emblem-h); width: calc(var(--emblem-h) * 72 / 64); }
+.scope-note { margin: 0 auto 0 0; color: var(--ink-muted); font-size: 0.92rem; font-style: italic; }
+.scope-sep { margin: 0 8px; opacity: 0.6; }
+.scope-clear {
+  flex: none;
+  padding: 8px 15px;
+  background: var(--dusk-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.scope-clear:hover { border-color: var(--teal); color: var(--teal); }
+.scope-random { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.scope-random .side-icon { width: 16px; height: 16px; color: inherit; }
+
+/* A platform's shelf: its facts beside the logo and the game count, a label over each value,
+   between them and the way back. The first few show; More opens out the rest and LaunchBox's
+   description of the platform under them. */
+.scope-head:has(.scope-about:not([hidden])) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas: "id about actions" "note about actions" ". about actions";
+  gap: 4px 28px;
+}
+.scope-head:has(.scope-about:not([hidden])) .scope-id { grid-area: id; }
+.scope-head:has(.scope-about:not([hidden])) .scope-note { grid-area: note; margin: 0; }
+.scope-head:has(.scope-about:not([hidden])) .scope-actions { grid-area: actions; align-self: center; }
+.scope-head:has(.scope-about:not([hidden])) .scope-logo { max-width: min(280px, 28vw); }
+.scope-about {
+  grid-area: about;
+  align-self: center;
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 24px;
+  border-left: 1px solid var(--line);
+}
+.scope-about.is-open { align-self: start; }
+.scope-head:has(.scope-about.is-open) .scope-actions { align-self: start; }
+.scope-facts {
+  justify-self: stretch;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px 22px;
+  margin: 0;
+}
+/* Four facts (a platform's) go four across or two by two, never three and one left on a
+   line of its own: a column is a quarter of the width when four of 140px fit, a half when
+   they don't. */
+.scope-about:not(.is-open) .scope-facts:has(> .scope-fact:nth-child(4):not(.is-extra)) {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(
+    calc((100% - 3 * 22px) / 4 - 1px), (4 * 140px + 3 * 22px - 100%) * 999, calc((100% - 22px) / 2 - 1px)), 1fr));
+}
+.scope-fact { min-width: 0; }
+.scope-about:not(.is-open) .scope-fact.is-extra,
+.scope-about:not(.is-open) .scope-blurb { display: none; }
+.scope-fact dt {
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.scope-fact dd { margin: 1px 0 0; font-size: 0.9rem; line-height: 1.35; overflow-wrap: anywhere; }
+.scope-blurb { max-width: 92ch; color: var(--ink-muted); font-size: 0.9rem; line-height: 1.5; }
+.scope-blurb p { margin: 0 0 0.6em; }
+.scope-blurb p:last-child { margin-bottom: 0; }
+.scope-more {
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scope-more:hover { color: var(--teal); text-decoration: underline; }
+
+/* The menus, then Only Favorites and Sort. Sort isn't a filter, so it sits apart, at the far
+   end of the row; and when a menu's value leaves the row too little room, Only Favorites and
+   Sort go under the menus together, still one at each end, rather than Sort going alone. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 8px;
+  margin-bottom: 18px;
+}
+.chips-end { flex: 1 1 auto; flex-wrap: nowrap; gap: 24px; }
+.chips-end > .chip-wrap { margin-left: auto; }
+/* Sort's menu opens leftwards, from the page's edge. */
+.chips-end .chip-panel { left: auto; right: 0; }
+
+/* ---------- Filter chips ---------- */
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip-wrap { position: relative; }
+
+/* Quiet while off; teal-edged once holding something. Each carries a small mark of what it
+   filters: a gamepad, a tag, a calendar, and bars for the order. */
+.chip {
+  --chip-gap: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--chip-gap);
+  max-width: 28ch;
+  min-height: 38px;
+  padding: 6px 14px;
+  background: linear-gradient(180deg, var(--dusk), var(--dusk-deep));
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+.chip:hover, .chip[aria-expanded="true"] { border-color: var(--accent); }
+.chip.is-on {
+  color: var(--teal);
+  border-color: var(--teal);
+  background: linear-gradient(180deg, rgb(34 211 238 / 0.16), rgb(34 211 238 / 0.07));
+  box-shadow: 0 0 0 1px rgb(34 211 238 / 0.2), 0 6px 16px -10px rgb(34 211 238 / 0.8);
+}
+.chip-icon { width: 17px; height: 17px; flex: none; color: var(--accent); opacity: 0.95; }
+.chip.is-on .chip-icon { color: inherit; }
+.chip-name { color: var(--ink-muted); }
+.chip.is-on .chip-name { color: inherit; opacity: 0.8; }
+.chip-value { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.chip-name:has(+ .chip-value:not(:empty))::after, .chip.is-toggle .chip-name::after { content: ""; }
+.chip-value:not(:empty)::before { content: ": "; }
+/* "Sort: Title A–Z", the colon against the name rather than a gap's width away from it. */
+.chip-name + .chip-value:not(:empty) { margin-left: calc(-1 * var(--chip-gap)); }
+.chip-caret { font-size: 0.65em; opacity: 0.7; }
+.chip-mark { color: var(--gold); font-size: 1em; }
+
+.chip-panel {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 240px;
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 8px;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: 0 20px 40px -16px #000;
+}
+
+.chip-body { max-height: min(56vh, 460px); overflow-y: auto; }
+/* Years, three to a row: wide enough for "1988" and a four-digit count ("1,085") beside the box. */
+.chip-body.is-grid { display: grid; grid-template-columns: repeat(3, minmax(7.8rem, 1fr)); gap: 0 4px; }
+/* Decade headings read "1970s": the capitals the other headings use would make it "1970S". */
+.chip-body.is-grid .chip-group { grid-column: 1 / -1; text-transform: none; }
+/* Choices sit under their group heading, not level with it. */
+.chip-group ~ .chip-choice { margin-left: 14px; }
+.chip-body.is-grid .chip-group ~ .chip-choice { margin-left: 0; padding-left: 10px; }
+
+.chip-group {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 8px 0 2px;
+  padding: 0 6px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.chip-group > span:not(.chip-choice-note) { margin-right: auto; }
+.chip-body > .chip-group:first-child { margin-top: 0; }
+
+.chip-choice {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+.chip-choice:hover { background: var(--dusk-deep); }
+/* Nothing matches this one under the other filters; still tickable. */
+.chip-choice.is-zero, .chip-group.is-zero { opacity: 0.42; }
+.chip-choice input, .chip-group input {
+  width: 15px; height: 15px; margin: 0; flex: none;
+  accent-color: var(--teal);
+  align-self: center;
+}
+.chip-choice-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A choice that has an opposite (each sort order): the row, then the button that turns it
+   over. The button sits outside the row's label, which would otherwise pick the row instead. */
+.chip-choice-pair { display: flex; align-items: center; gap: 2px; }
+.chip-choice-pair > .chip-choice { flex: 1; min-width: 0; }
+.chip-flip {
+  flex: none;
+  padding: 1px 8px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ink-muted);
+  font-size: 1.05rem;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.chip-flip:hover { color: var(--teal); border-color: var(--teal); }
+.chip-choice-note { color: var(--ink-muted); font-size: 0.78rem; flex: none; font-variant-numeric: tabular-nums; }
+
+.chip-foot { display: flex; justify-content: flex-end; padding: 6px 6px 0; }
+.chip-foot:has(.chip-clear[hidden]) { display: none; }
+
+/* ---------- Shelf: the grid of cards ---------- */
+
+/* The grid, in chunks of a few rows (see shelf.js): the whole library's tiles are in the page
+   once it settles, and one grid that long would be laid out again from the top whenever a
+   batch of tiles went in, a picture arrived or the window was resized. Each chunk is a grid
+   with the same columns, and a chunk off the screen is skipped, holding its place at about
+   the height of its rows until it's scrolled near — and at the height it really had, once
+   it's been shown. The chunks sit under each other with the grid's own row gap between them,
+   so the rows run on from one to the next. */
+.shelf {
+  --tile-min: 168px;
+  --shelf-gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--shelf-gap);
+}
+.shelf-chunk, .shelf-probe {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr));
+  gap: var(--shelf-gap);
+}
+.shelf-chunk {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1980px; /* 8 rows of a typical card */
+  /* content-visibility clips what's drawn outside the chunk, which would cut the top off a
+     card in its first row as it lifts under the pointer, and the selected card's ring and glow
+     on every side. So the chunk reaches past its cards by room for those, and gives the same
+     back as a negative margin, which leaves every card where it was. Not past the page's own
+     side padding, so there's nothing to scroll sideways. */
+  --chunk-room: 24px;
+  padding: var(--chunk-room) min(var(--chunk-room), var(--gutter));
+  margin: calc(-1 * var(--chunk-room)) calc(-1 * min(var(--chunk-room), var(--gutter)));
+  /* That room reaches over the filter chips above the first chunk: clicks go through it. */
+  pointer-events: none;
+}
+.shelf-chunk > * { pointer-events: auto; }
+/* A chunk far off a touch screen (see shelf.js): its tiles are hidden, which frees their layout,
+   and it keeps its height from a style shelf.js sets. Not a grid meanwhile: Chrome holds on to
+   a grid's sizing even with nothing in it, which was most of what the chunks held. */
+.shelf-chunk.is-far { display: block; }
+.shelf-chunk.is-far > * { display: none; }
+/* An empty grid with the shelf's columns, so they can be counted (see shelf.js). Empty, it
+   would still take a gap in the column; the margin takes that back. */
+.shelf-probe { height: 0; margin-bottom: calc(-1 * var(--shelf-gap)); }
+/* Marks the end of the tiles put in so far (see shelf.js). */
+.shelf-sentinel { height: 1px; }
+
+/* A card is as tall as its row, and a row is as tall as the tallest art in it — box art,
+   a wide title screen, whatever the game has — rather than every row keeping room for the
+   tallest shape any game might have. The art box takes up whatever slack is left over, so the
+   titles still line up across the row. */
+.tile {
+  position: relative;
+  display: grid;
+  background: var(--dusk);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.tile:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -16px #000;
+}
+.tile.is-selected {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px var(--teal), 0 0 24px -4px rgb(34 211 238 / 0.55);
+}
+/* A little depth under the art, so the title sits on a surface rather than floating. */
+.tile-body {
+  background: linear-gradient(180deg, rgb(17 31 48 / 0.6), var(--dusk));
+  border-top: 1px solid rgb(231 238 246 / 0.05);
+}
+
+.tile a {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  outline-offset: -2px;
+}
+
+.tile-art {
+  position: relative;
+  flex: 1;
+  display: grid;
+  /* Pinned to the top, so the art meets the card's rounded corners and is trimmed by them.
+     Where a row is taller than this card's picture, the slack falls under it. Art scaled
+     down by the height cap is narrower than the card, so it's centred. */
+  align-content: start;
+  justify-items: center;
+  /* Before its picture arrives a card would be no taller than its title; this holds a row
+     open so the grid doesn't jump about as the art loads. */
+  min-height: 110px;
+  background: var(--dusk-deep);
+}
+/* The art runs the full width of the card, right into the corners, where the card's own
+   rounding trims it (.tile has overflow: hidden). Art taller than the cap is scaled down to
+   it instead — the browser takes the width back down with it, keeping its shape — so no one
+   game can stretch its row. */
+.tile-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: var(--tile-art);
+  /* Without this the height cap would squash the picture: a width of 100% is not `auto`, so
+     the browser clamps the height and leaves the width where it was. `contain` fits the
+     picture inside whatever box that leaves, keeping its shape. */
+  object-fit: contain;
+  /* Pictures fade in as they arrive rather than popping into the grid one by one. */
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+.tile-art.is-loaded img { opacity: 1; }
+.tile-art .no-art {
+  /* The card's width less the margins: 100% with a margin would be centred past both edges. */
+  justify-self: stretch;
+  width: auto;
+  min-height: 130px;
+  display: grid;
+  place-items: center;
+  margin: 8px;
+  padding: 12px;
+  text-align: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.tile-body { flex: none; padding: 10px 12px 10px; }
+/* One line, cut with an ellipsis where it runs long, so the titles line up across a row
+   whatever their length. The star sits over the art, so the title has the full width. */
+.tile-name {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 3px 0 0;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+}
+.tile-year { flex: none; font-variant-numeric: tabular-nums; }
+.tile-platform {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.tile-note { display: block; margin-top: 4px; color: var(--alarm); font-size: 0.78rem; }
+.tile.is-broken .tile-art img { filter: grayscale(0.8) brightness(0.7); }
+.tile a:hover .tile-name, .tile a:focus-visible .tile-name { color: var(--teal); }
+
+/* The star over the top corner of the art: an outline on a dark disc until it's on, so it
+   reads against whatever the box art is. */
+.tile-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(8 15 25 / 0.55);
+  border: 0;
+  border-radius: 50%;
+  color: rgb(231 238 246 / 0.75);
+  cursor: pointer;
+  transition: color 0.12s, background-color 0.12s;
+}
+.tile-star svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.tile-star:hover { color: var(--gold); background: rgb(8 15 25 / 0.85); }
+.tile.is-fav .tile-star { color: var(--gold); background: rgb(8 15 25 / 0.7); }
+.tile.is-fav .tile-star svg { fill: currentColor; }
+
+.empty {
+  padding: 24px 0;
+  color: var(--ink-muted);
+  font-style: italic;
+  max-width: 60ch;
+}
+
+/* ---------- Game page ---------- */
+
+/* A game page stands on its own, the art the whole window, with "Back to the list" the way
+   out. It lies over the shelf rather than replacing it (see app.js): the shelf keeps its layout
+   and its place underneath, untouched, so that Back is a matter of lifting the page off however
+   many tiles the shelf has, in any browser. The page scrolls on its own. */
+#game-view {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--night);
+}
+
+/* The page scrolls, the window behind it doesn't, so the only scrollbar in sight is the page's
+   own: the shelf's would sit alongside it, scrolling something nobody can see. The shelf keeps
+   its place (a window that can't scroll holds its offset) and showShelf puts it back anyway.
+   Only where a scrollbar takes up room is this worth doing, since it makes the browser lay the
+   shelf out again; app.js measures that and leaves the class off where it doesn't. */
+body.is-game { overflow: hidden; }
+
+.room {
+  position: relative;
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+.room-backdrop {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: min(78vh, 760px);
+  z-index: -1;
+  background-size: cover;
+  background-position: center 30%;
+  opacity: 0.3;
+  mask-image: linear-gradient(to bottom, #000 35%, transparent);
+}
+
+.room-inner {
+  padding: 22px var(--gutter) 64px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* The way out of a game page, and the way on to another: one at each end of the row. */
+.room-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 0 28px;
+}
+.back-link {
+  display: inline-block;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.back-link:hover { color: var(--teal); }
+
+.room-top {
+  display: grid;
+  grid-template-columns: minmax(200px, 340px) 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+button.room-box { padding: 0; border: 0; background: none; cursor: zoom-in; }
+
+.room-box img {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 24px 48px -20px #000;
+}
+
+.room-logo { max-width: min(520px, 100%); max-height: 180px; object-fit: contain; object-position: left; display: block; }
+
+.room h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.room-byline { margin: 12px 0 0; color: var(--ink-muted); font-size: 1.05rem; }
+.room-platform {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 2px 10px;
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  vertical-align: 2px;
+}
+
+.fav-mark { margin-right: 6px; font-size: 1.1rem; line-height: 1; color: var(--gold); }
+
+/* What came in the box: the manual and the files in the game's Extras folder. */
+.box-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.box-items li { display: flex; }
+.box-items .item {
+  flex-basis: 108px;
+  border-color: var(--line);
+  background: var(--dusk);
+  border-radius: 8px;
+}
+
+.play-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  margin-top: 28px;
+  max-width: 760px;
+}
+/* Nothing to play for this account: no gap where it would be. */
+.play-panel:empty { display: none; }
+
+.play-summary { min-width: 0; }
+.play-version { margin: 0; font-size: 1.2rem; font-weight: 600; line-height: 1.25; }
+.play-meta { margin: 2px 0 0; color: var(--ink-muted); font-size: 0.95rem; }
+.play-warning { color: var(--alarm); }
+
+/* ---------- Versions table ---------- */
+
+.versions { max-width: 1000px; }
+.versions h2 { margin-top: 48px; }
+.versions-note { margin: -6px 0 12px; color: var(--ink-muted); }
+
+.version-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+
+.version {
+  display: grid;
+  /* fixed columns so music menus, Default and Play line up from row to row */
+  grid-template-columns: minmax(0, 1fr) 210px 150px 112px;
+  gap: 6px 16px;
+  align-items: center;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.version.is-default { background: linear-gradient(to right, rgb(34 211 238 / 0.08), transparent 70%); }
+
+.version-name-cell { min-width: 0; }
+.version-name { display: block; font-size: 1.05rem; font-weight: 500; }
+.version-meta { display: block; color: var(--ink-muted); font-size: 0.9rem; }
+.version-meta.is-warning { color: var(--alarm); }
+/* The collection's advice for a version, in paragraphs ("double click Start"). */
+.version-meta.is-how-to-play, .how-to-play .play-meta { white-space: pre-line; }
+
+.default-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: var(--ink-muted);
+  font-size: 0.92rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.default-toggle:hover { color: var(--teal); border-color: var(--line-strong); }
+.default-toggle[aria-pressed="true"] { color: var(--teal); cursor: default; }
+.default-toggle[aria-pressed="true"]:hover { border-color: transparent; }
+.default-mark { font-size: 1.1rem; line-height: 1; }
+
+.play-button.small { font-size: 1rem; padding: 9px 16px; border-radius: 8px; box-shadow: none; }
+.version select { width: 100%; }
+.version .play-button.small { justify-self: stretch; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+
+/* Download's menu: an offline copy, or the game's files only. */
+.download-menu { position: relative; }
+.download-caret { margin-left: 6px; font-size: 0.8em; color: var(--ink-muted); }
+.download-choices {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  min-width: 15rem;
+  max-width: min(24rem, calc(100vw - 32px));
+  padding: 6px;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.download-choice {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.download-choice:hover, .download-choice:focus-visible { background: var(--dusk-deep); color: var(--teal); }
+.download-choice-name { font-weight: 600; }
+.download-choice-size { margin-left: 8px; font-weight: 400; color: var(--ink-muted); }
+.download-choice-detail { font-size: 0.85rem; color: var(--ink-muted); overflow-wrap: anywhere; }
+
+.room-notes {
+  margin-top: 28px;
+  max-width: 68ch;
+  font-size: 1.02rem;
+  line-height: 1.65;
+}
+.room-notes p { margin: 0 0 1em; }
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 20px;
+  margin: 28px 0 0;
+  max-width: 68ch;
+}
+.facts dt { color: var(--ink-muted); }
+.facts dd { margin: 0; }
+
+.room h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 48px 0 16px;
+}
+
+/* ---------- Details dock ---------- */
+
+/* Three parts: the picture box, what the game is with the buttons, and a table of facts.
+   Nothing is selected to begin with, and then there's no dock at all. */
+.dock:not(.is-pinned) { display: none; }
+.dock {
+  position: fixed;
+  inset: auto 0 0 var(--sidebar);
+  z-index: 40;
+  display: grid;
+  /* One height at every width a browser window goes to, so the dock doesn't jump as the window
+     is made narrower (a phone's, below, fits its content instead): the picture at full size,
+     the gap and arrows under it, the padding and the top border. The words and the facts are
+     fitted into that beside it, the buttons' foot level with the arrows'. */
+  --shot-h: 140px;
+  grid-template-columns: calc(var(--shot-h) * 8 / 5) minmax(0, 1fr) minmax(280px, 360px);
+  height: calc(var(--shot-h) + 7px + 24px + 26px + 1px);
+  gap: 24px;
+  align-items: stretch;
+  padding: 13px var(--gutter);
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--dusk), var(--dusk-deep));
+  border-top: 1px solid var(--teal);
+  border-left: 1px solid var(--line);
+  box-shadow: 0 -24px 48px -28px #000, 0 -1px 0 rgb(34 211 238 / 0.35);
+}
+
+.dock-shot-box { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.dock-shot {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  object-fit: cover;
+  background: #000;
+  image-rendering: pixelated;
+  border: 1px solid rgb(231 238 246 / 0.14);
+  border-radius: 9px;
+  box-shadow: 0 10px 24px -12px #000, inset 0 0 0 1px rgb(0 0 0 / 0.4);
+}
+.dock-shot.is-empty { background: var(--dusk-deep); }
+video.dock-shot { image-rendering: auto; cursor: pointer; }
+
+/* Under the picture: which one of the game's pictures this is, and the way to the next. */
+.dock-shot-nav { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.dock-shot-step {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--dusk-deep);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.dock-shot-step svg { width: 16px; height: 16px; }
+.dock-shot-step:hover:not(:disabled) { color: var(--teal); border-color: var(--teal); }
+/* One picture: 1 / 1, the arrows there but off. None: the row's room kept, empty. */
+.dock-shot-step:disabled { opacity: 0.35; cursor: default; }
+.dock-shot-nav[hidden] { display: flex; visibility: hidden; }
+.dock-shot-count { color: var(--ink-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+
+/* The video with its sound badge in the corner. */
+.dock-stage { position: relative; display: block; }
+.dock-sound {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(8 15 25 / 0.6);
+  border: 0;
+  border-radius: 50%;
+  color: rgb(231 238 246 / 0.85);
+  cursor: pointer;
+}
+.dock-sound svg { width: 16px; height: 16px; }
+.dock-sound:hover { color: var(--teal); background: rgb(8 15 25 / 0.85); }
+.dock-sound[aria-pressed="true"] { color: var(--teal); }
+.dock-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+/* In the dock's one height: what doesn't fit is cut off at the bottom (the genres go first)
+   rather than making the dock taller or pushing the buttons out. */
+.dock-info { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+.dock-info > * { flex-shrink: 0; }
+.dock-info > p { margin: 0; }
+.dock-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: 0 1px 10px rgb(0 0 0 / 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock-meta { color: var(--ink-muted); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-sep { margin: 0 8px; color: var(--line-strong); }
+.dock-part { white-space: nowrap; }
+.dock-rating { display: flex; align-items: center; gap: 8px; }
+.dock-score { color: var(--gold); font-weight: 600; }
+.dock-votes { color: var(--ink-muted); font-size: 0.88rem; }
+/* One row of genres; the game's page has them all. */
+.dock-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: calc(1.3rem + 6px); overflow: hidden; }
+.dock-chip {
+  padding: 2px 10px;
+  line-height: 1.3rem;
+  background: rgb(92 196 224 / 0.08);
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.dock-warning { color: var(--alarm); font-size: 0.9rem; }
+
+.dock-actions { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: auto; padding-top: 4px; }
+.dock-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dock-actions svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
+.dock-play {
+  background: var(--teal);
+  border: 0;
+  color: var(--teal-ink);
+  box-shadow: 0 8px 20px -8px rgb(34 211 238 / 0.8);
+}
+.dock-play:hover { background: #5be3f6; }
+.dock-button { background: var(--dusk-deep); border: 1px solid var(--line-strong); color: var(--ink); }
+.dock-button:hover { border-color: var(--teal); color: var(--teal); }
+/* Just the star, round, beside the buttons with words on them. */
+.dock-actions .is-icon { width: 40px; padding: 0; justify-content: center; }
+.dock-fav svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.dock-fav[aria-pressed="true"] { color: var(--gold); border-color: var(--gold); }
+.dock-fav[aria-pressed="true"] svg { fill: currentColor; }
+
+/* A small x in the dock's corner to close it, clear of the facts table's edge. */
+.dock-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--dusk-deep);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.dock-close svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.dock-close:hover { color: var(--teal); border-color: var(--teal); }
+
+/* The facts table: label left, value right, a rule between rows. Its frame as tall as its
+   rows, up to the dock's own height. */
+.dock-facts {
+  align-self: start;
+  max-height: 100%;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-content: start;
+  gap: 0 16px;
+  margin: 0;
+  padding: 4px 14px;
+  background: linear-gradient(160deg, rgb(13 24 38 / 0.85), rgb(11 21 34 / 0.7));
+  border: 1px solid rgb(231 238 246 / 0.1);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  overflow: hidden;
+}
+.dock-facts dt, .dock-facts dd {
+  margin: 0;
+  padding: 3px 0;
+  border-top: 1px solid rgb(231 238 246 / 0.07);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock-facts dt:first-of-type, .dock-facts dt:first-of-type + dd { border-top: 0; }
+.dock-facts dt { color: var(--ink-muted); }
+.dock-facts dd { text-align: right; }
+
+/* Five stars in the dim colour, with the same five in gold clipped to the score. */
+.stars {
+  position: relative;
+  display: inline-block;
+  vertical-align: -1px;
+  color: var(--accent-dim);
+  font-size: 1.05rem;
+  line-height: 1;
+  letter-spacing: 2px;
+}
+.stars::before { content: "★★★★★"; }
+.stars-fill {
+  position: absolute;
+  inset: 0;
+  width: var(--fill, 0%);
+  overflow: hidden;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.item {
+  flex: 0 0 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  line-height: 1.15;
+  text-align: center;
+}
+.item svg { width: 36px; height: 36px; color: var(--accent); }
+.item span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.item:hover, .item:focus-visible { color: var(--teal); border-color: var(--line-strong); }
+.item:hover svg { color: var(--teal); }
+
+/* Hidden rather than taken out: a dock with no height would take the page's room for it away
+   (--dock-height, see wireDock) and give it back, laying the page out twice and leaving a shelf
+   scrolled to its end short of where it was. */
+body.is-playing .dock { visibility: hidden; }
+/* The hidden dock keeps its height, so a notice over a game sits at the bottom instead. */
+body.is-playing .notice { bottom: 12px; }
+
+/* The game's videos, playing where they sit. A fixed shape keeps the page from jumping as
+   each one's size arrives, and any shape of video sits inside it on black. */
+.room-videos { display: flex; flex-wrap: wrap; gap: 16px; }
+.room-video {
+  width: 100%;
+  max-width: min(640px, 100%);
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: #000;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.shots button {
+  padding: 0;
+  border: 0;
+  background: #000;
+  cursor: zoom-in;
+  aspect-ratio: 8 / 5; /* 320×200, the shape of most of these games */
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.shots img { width: 100%; height: 100%; object-fit: contain; }
+img.pixelated { image-rendering: pixelated; }
+
+.gallery-strip {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.gallery-strip button {
+  flex: 0 0 auto;
+  padding: 0; border: 0; background: none; cursor: zoom-in;
+}
+.gallery-strip img { height: 180px; width: auto; display: block; border-radius: 6px; }
+/* The strip scrolls, so it clips: a ring drawn outside the picture would lose its top edge. */
+.gallery-strip button:focus-visible { outline-offset: -2px; }
+
+/* ---------- Player ---------- */
+
+.player {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+
+.player-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px var(--gutter);
+  background: var(--dusk);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.player-title { margin: 0; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-title strong { font-weight: 600; color: var(--ink); }
+.player-status { margin: 0 0 0 auto; color: var(--ink-muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; text-align: right; }
+.player-status.is-error { color: var(--alarm); }
+
+.player iframe { flex: 1; min-height: 0; width: 100%; border: 0; display: block; background: #000; }
+
+/* Hosting a game for a friend: the sheet under the bar with the link to send and who's joined. */
+.invite-sheet {
+  position: absolute;
+  right: var(--gutter);
+  top: calc(100% + 6px);
+  z-index: 30;
+  width: min(440px, calc(100vw - 32px));
+  padding: 14px 16px;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  /* On a phone held sideways the players list would run off the bottom of the screen. */
+  max-height: calc(100vh - 70px);
+  max-height: calc(100dvh - 70px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.invite-sheet h2 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 600; }
+.invite-help { margin: 0 0 12px; color: var(--ink-muted); font-size: 0.9rem; line-height: 1.45; }
+.invite-link { display: flex; gap: 8px; }
+.invite-link input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 7px 10px;
+  color: var(--ink);
+  background: var(--dusk-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+.invite-players { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--ink-muted); }
+.invite-players .is-playing { color: var(--ink); }
+.invite-stats { color: var(--ink-muted); }
+.invite-build { margin: 12px 0 0; font-size: 0.85rem; color: var(--ink-muted); }
+.invite-build a { color: var(--sea); }
+.player-button[data-act="invite"].has-friends { color: var(--teal); border-color: var(--teal); }
+
+/* The box the phone's keyboard types into (see js/typing.js): out of sight, but not hidden,
+   which would keep the keyboard from coming up. 16px text, or an iPhone zooms in on it. */
+.player-typing {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  resize: none;
+  font-size: 16px;
+  pointer-events: none;
+}
+
+/* The keys a phone's keyboard doesn't have, in a row under the bar while it's up. */
+.player-keys {
+  display: flex;
+  gap: 6px;
+  padding: 6px var(--gutter);
+  overflow-x: auto;
+  background: var(--dusk);
+  border-bottom: 1px solid var(--line-strong);
+}
+.player-key {
+  flex: 1 0 auto;
+  min-width: 44px;
+  min-height: 38px;
+  padding: 0 10px;
+  background: var(--dusk-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 500;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+}
+.player-key:active { color: var(--teal); border-color: var(--teal); background: rgb(34 211 238 / 0.12); }
+
+.player-crash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100% - 32px));
+  padding: 20px 24px;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+.player-crash h2 { margin: 0 0 8px; font-size: 1.3rem; font-weight: 700; }
+.player-crash p { margin: 0 0 12px; line-height: 1.5; }
+.player-crash-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0 0 !important; }
+.player-crash .play-button { font-size: 1rem; padding: 9px 16px; }
+
+/* The window stops scrolling under a game, as under a game page (see body.is-game), and on the
+   same terms: only where a scrollbar takes up room (app.js says so once, as the page opens), or
+   on a touch screen, where a drag on the player's bar would scroll the shelf. Anywhere else it
+   would only make the browser lay the whole shelf out again as a game starts and ends, which
+   Firefox spends a second or more over with a big library. */
+body.is-playing.scrollbars-take-room { overflow: hidden; }
+@media (hover: none) {
+  body.is-playing { overflow: hidden; }
+}
+
+/* The sheet that picks a DOS game's on-screen buttons (see js/touchbuttons.js): up from the
+   bottom of a phone's screen, over the game, with each button's picker where the button sits
+   on the pad. */
+/* The question before hosting a game by video (see confirmByVideo in room.js). */
+.confirm-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 66;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gutter);
+  background: rgb(5 12 20 / 0.6);
+}
+.confirm-sheet {
+  width: min(520px, 100%);
+  /* Taller than a phone held sideways, it scrolls rather than running off the top and bottom. */
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 22px 20px;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -20px #000;
+}
+.confirm-sheet h2 { margin: 0 0 10px; font-size: 1.15rem; font-weight: 700; }
+.confirm-sheet p { margin: 0 0 10px; font-size: 0.95rem; line-height: 1.5; }
+.confirm-sheet .confirm-note { color: var(--ink-muted); font-size: 0.88rem; }
+.confirm-ways { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.confirm-ways button { font: inherit; font-size: 0.95rem; font-weight: 500; color: var(--ink); background: var(--dusk-deep); border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+.confirm-ways button:hover { border-color: var(--teal); color: var(--teal); }
+.confirm-ways .is-main { color: #062a33; background: var(--teal); border-color: var(--teal); font-weight: 600; }
+.confirm-ways .is-main:hover { background: #4ee1f7; color: #062a33; }
+
+.touch-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(5 12 20 / 0.55);
+}
+.touch-sheet {
+  width: min(900px, 100%);
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px var(--gutter) calc(18px + env(safe-area-inset-bottom));
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -16px 40px -16px #000;
+}
+.touch-head { display: flex; align-items: center; gap: 12px; }
+.touch-head h2 { margin: 0 auto 0 0; font-size: 1.2rem; font-weight: 700; outline: none; }
+.touch-intro { margin: 6px 0 0; color: var(--ink-muted); font-size: 0.9rem; }
+.touch-intro strong { color: var(--ink); font-weight: 600; }
+.touch-sheet .setting { margin-top: 12px; }
+
+.touch-groups { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 14px; }
+.touch-groups[inert] { opacity: 0.45; }
+.touch-group { flex: 1 1 250px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.touch-group legend { padding: 0; margin-bottom: 6px; color: var(--accent); font-size: 0.85rem; font-weight: 600; }
+
+.touch-cross {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas: ". top ." "west mid east" ". bottom .";
+  gap: 6px;
+  align-items: center;
+}
+.touch-dpad [data-control="up"], .touch-face [data-control="y"] { grid-area: top; }
+.touch-dpad [data-control="left"], .touch-face [data-control="x"] { grid-area: west; }
+.touch-dpad [data-control="right"], .touch-face [data-control="b"] { grid-area: east; }
+.touch-dpad [data-control="down"], .touch-face [data-control="a"] { grid-area: bottom; }
+.touch-figure { grid-area: mid; justify-self: center; width: 30px; height: 30px; color: var(--ink-muted); }
+.touch-figure svg { display: block; width: 100%; height: 100%; }
+.touch-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+
+/* 16px, or an iPhone zooms in on the list. */
+.touch-key {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 4px;
+  background: var(--dusk-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 16px;
+  text-overflow: ellipsis;
+}
+.touch-key.is-changed { color: var(--teal); border-color: var(--teal); }
+
+.touch-foot { display: flex; justify-content: flex-end; margin-top: 16px; }
+.touch-sheet .player-button:disabled { opacity: 0.5; cursor: default; color: var(--ink); border-color: var(--line-strong); }
+
+
+/* ---------- Lightbox ---------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(5 12 20 / 0.94);
+  display: grid;
+  place-items: center;
+  padding: 56px 16px 16px;
+}
+/* Swiping sideways on a picture steps through them (see wireLightbox), so only vertical
+   panning and zooming are left to the browser. */
+.lightbox-stage { max-width: 100%; max-height: 100%; display: grid; place-items: center; touch-action: pan-y pinch-zoom; }
+/* dvh where there is one: on a phone, vh is the height with the browser's toolbars put away. */
+.lightbox-stage img, .lightbox-stage video { max-width: min(100%, 1600px); max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); }
+/* Along the top, clear of a video's own controls. Clicks between the buttons reach the
+   backdrop, which closes the lightbox. */
+.lightbox-bar {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.lightbox-bar button { pointer-events: auto; }
+.lightbox-count { margin: 0 auto 0 0; color: var(--ink-muted); white-space: nowrap; }
+.lightbox-nav { gap: 0.4em; }
+
+/* ---------- Notices ---------- */
+
+.notice {
+  position: fixed;
+  left: var(--gutter);
+  bottom: calc(var(--dock-height) + 12px);
+  z-index: 70;
+  max-width: min(560px, calc(100vw - 32px));
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--dusk);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--ink);
+  box-shadow: 0 16px 32px -16px #000;
+}
+.notice.is-error { border-color: var(--alarm); color: var(--alarm); }
+/* On a game page the dock is under the page, so there's nothing to sit above. */
+.notice.is-low { bottom: 12px; }
+
+/* ---------- Narrower windows ---------- */
+
+/* Just wide enough for the sidebar: the dock still runs the whole width, under the sidebar
+   too, so the game in it keeps the room it had a little narrower. The sidebar ends where
+   the dock begins, so its last rows can still be scrolled to. */
+@media (min-width: 1041px) and (max-width: 1240px) {
+  .dock { left: 0; border-left: 0; }
+  .sidebar { height: calc(100vh - var(--topbar) - var(--dock-height)); }
+}
+
+/* No room for the sidebar or for the dock's facts table: the chips do everything the sidebar
+   did, and the picture and the buttons are what the dock is mostly for. */
+@media (max-width: 1040px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { display: none; }
+  /* No sidebar to leave room for, so the dock runs the whole width again. */
+  .dock { left: 0; border-left: 0; grid-template-columns: calc(var(--shot-h) * 8 / 5) minmax(0, 1fr); }
+  .dock-facts { display: none; }
+}
+
+/* Short of the room for every chip in one row, with space to spare for Sort's longest order:
+   the menus share the width of a row of their own evenly, edge to edge like the heading
+   above, and Only Favorites and Sort take the row under them, one at each end. The same as a
+   phone's, which has the menus two to a row (see below). */
+@media (max-width: 1299px) {
+  .toolbar { gap: 8px; }
+  #chips { flex: 1 1 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  #chips > .chip-wrap > .chip { width: 100%; max-width: none; justify-content: center; --chip-gap: 5px; padding-inline: 8px; }
+  /* Once a menu holds something, its value says enough without its name. */
+  #chips > .chip-wrap > .chip:has(.chip-value:not(:empty)) .chip-name { display: none; }
+  #chips > .chip-wrap > .chip .chip-value { margin-left: 0; }
+  #chips > .chip-wrap > .chip .chip-value::before { content: none; }
+}
+/* A menu opens at least as wide as its chip; the last one's from the right, to stay on the
+   page. (A phone's open across the whole toolbar instead.) The facts beside the heading's
+   logo have room for two across here: two to a row, More in the next cell rather than a row
+   of its own, level with the last fact's value. Opened, they take the whole width again, for
+   the platform's description. */
+@media (min-width: 761px) and (max-width: 1299px) {
+  .scope-about:not(.is-open) { grid-template-columns: repeat(2, minmax(0, 10rem)); gap: 8px 28px; }
+  .scope-about:not(.is-open) .scope-facts { display: contents; }
+  .scope-about:not(.is-open) .scope-more { align-self: end; justify-self: start; }
+  #chips .chip-panel { min-width: max(240px, 100%); }
+  #chips > .chip-wrap:last-child .chip-panel { left: auto; right: 0; }
+}
+
+@media (max-width: 760px) {
+  body { font-size: 14px; }
+  .search { max-width: none; }
+
+  /* The heading in one row: the logo (or the name), how many games centred beside it, and
+     the way back at the far end. A platform's facts have no room beside the logo, so they go
+     under all three. */
+  .scope-head,
+  .scope-head:has(.scope-about:not([hidden])) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto;
+    grid-template-areas: "id note actions" "about about about";
+    align-items: center;
+    gap: 8px 12px;
+    padding: 10px 12px;
+  }
+  .scope-id { grid-area: id; }
+  /* How many games over what the shelf is (Consoles, a list's description), not run together. */
+  .scope-note, .scope-head:has(.scope-about:not([hidden])) .scope-note {
+    grid-area: note;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.3;
+  }
+  .scope-sep { display: none; }
+  .scope-actions { grid-area: actions; }
+  .scope-logo, .scope-head:has(.scope-about:not([hidden])) .scope-logo { height: 40px; max-width: 44vw; }
+  .scope-emblem { --emblem-h: 44px; }
+  .scope-title { font-size: 1.15rem; }
+  .scope-mark { width: 32px; height: 32px; border-radius: 9px; }
+  .scope-mark .side-icon { width: 18px; height: 18px; }
+  .scope-clear { padding: 6px 12px; font-size: 0.85rem; }
+  .scope-about { padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+
+  /* The chips laid out as above, but the menus two to a row: four across would leave each
+     of them too narrow for its name. A menu opens across the whole toolbar rather than from
+     its own chip, which on the right would run off the screen. */
+  .toolbar { position: relative; margin-bottom: 14px; }
+  #chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chip { max-width: none; }
+  .toolbar .chip-wrap { position: static; }
+  .toolbar .chip-panel { left: 0; right: 0; max-width: none; min-width: 0; }
+  .chip-body.is-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shelf { --tile-min: 150px; --shelf-gap: 10px; }
+  /* Not enough room for the box art and the logo side by side, so the logo goes and the
+     art takes its place, bigger. The title, hidden while the logo said it, comes back. */
+  /* Stacked, both starting at the same left edge as everything under them. */
+  .room-top { grid-template-columns: 1fr; gap: 20px; }
+  .room-box { width: 100%; max-width: min(340px, 76vw); }
+  .room-logo { display: none; }
+  .room-title.visually-hidden {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+  .version { grid-template-columns: 1fr auto; }
+  .version-name-cell, .version select { grid-column: 1 / -1; }
+  .version > span:empty { display: none; }
+  /* The same height and picture as a wide screen, with everything a wide screen shows beside
+     it (the rating, the genres, the buttons' words): the words in what width is left, the
+     buttons under them, a little smaller. */
+  .dock {
+    grid-template-columns: calc(var(--shot-h) * 8 / 5) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "shot info" "shot actions";
+    gap: 10px 12px;
+    padding-inline: 12px;
+  }
+  .dock-main { display: contents; }
+  .dock-shot-box { grid-area: shot; }
+  .dock-shot-step { width: 30px; height: 24px; }
+  .dock-shot-count { font-size: 0.72rem; }
+  .dock-sound { width: 26px; height: 26px; left: 5px; bottom: 5px; }
+  .dock-info { grid-area: info; gap: 5px; }
+  /* Clear of the close button, which sits level with the title here. */
+  .dock-title { padding-right: 18px; }
+  .dock-actions { grid-area: actions; align-self: end; flex-wrap: nowrap; gap: 8px; margin-top: 0; padding-top: 0; }
+  /* Two lines for a long name or a long line under it, rather than cutting either short. */
+  .dock-title, .dock-meta {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .dock-title { font-size: 1.1rem; }
+  .dock-meta { font-size: 0.85rem; line-height: 1.35; }
+  .dock-sep { margin: 0 5px; }
+  .dock-rating { flex-wrap: wrap; gap: 2px 6px; font-size: 0.9rem; }
+  .dock-votes { font-size: 0.8rem; }
+  /* One row of genres, which leaves the name and the line under it room for two lines each. */
+  .dock-chips { gap: 4px; max-height: calc(1.3rem + 4px); overflow: hidden; }
+  .dock-chip { padding: 1px 8px; font-size: 0.74rem; line-height: 1.3rem; }
+  .dock-actions button { min-height: 38px; padding: 6px 13px; gap: 6px; font-size: 0.85rem; justify-content: center; }
+  .dock-actions svg { width: 16px; height: 16px; }
+  .dock-actions .is-icon { width: 38px; flex: none; }
+  .item { flex-basis: 76px; font-size: 0.75rem; padding: 4px 2px; }
+  .item svg { width: 26px; height: 26px; }
+  .player-bar { gap: 8px; }
+  /* No room for progress lines, but an error gets its own row under the title and buttons. */
+  .player-status:not(.is-error) { display: none; }
+  .player-bar:has(.player-status.is-error) { flex-wrap: wrap; }
+  .player-status.is-error { order: 1; flex-basis: 100%; margin: 0; white-space: normal; text-align: left; }
+  .player-title span { display: none; }
+  /* Just the arrows (the buttons keep their names for screen readers), big enough to tap. */
+  .lightbox-nav-word { display: none; }
+  .lightbox-nav { min-width: 44px; min-height: 40px; justify-content: center; }
+}
+
+/* As narrow as a phone (or a desktop window pulled in to its narrowest). Three cards across,
+   and the heading, chips and dock laid out as above but tighter: the way back is just its
+   arrow, a platform's facts two across, Play fills the dock's width. A little past 520px
+   too, where the library's three facts under the heading wouldn't yet fit in one row. */
+@media (max-width: 540px) {
+  .shelf { --tile-min: 104px; --shelf-gap: 8px; }
+  .tile-body { padding: 7px 8px; }
+  .tile-art { min-height: 80px; }
+  .tile-art .no-art { min-height: 96px; margin: 6px; }
+  .tile-star { width: 26px; height: 26px; top: 6px; right: 6px; }
+  .tile-star svg { width: 15px; height: 15px; }
+  .tile-line { font-size: 0.74rem; }
+
+  /* Just the name and how many games: no facts, which would push the shelf down the screen. */
+  .scope-head, .scope-head:has(.scope-about:not([hidden])) { gap: 8px 10px; grid-template-areas: "id note actions"; }
+  .scope-about { display: none; }
+  .scope-logo, .scope-head:has(.scope-about:not([hidden])) .scope-logo { height: 36px; max-width: 40vw; }
+  .scope-emblem { --emblem-h: 38px; }
+  .scope-title { font-size: 1.05rem; }
+  /* Just the arrow, round: the words would leave the count no room (it keeps them for
+     screen readers). */
+  .scope-clear { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; font-size: 1.05rem; }
+  .scope-clear-word { display: none; }
+  /* The two round buttons side by side, which keeps the heading one row high. */
+  .scope-actions { flex-direction: row; }
+
+  .chip { min-height: 36px; padding: 5px 10px; font-size: 0.85rem; }
+
+  .dock-title { font-size: 1.05rem; }
+  /* A game page's box art the width of the page. */
+  .room-box { max-width: none; }
+  /* No room in the player's bar for Full screen, which a phone's browser doesn't do anyway. */
+  .player-button[data-act="fullscreen"] { display: none; }
+  /* Slimmer, so all three still fit beside the picture at a browser's narrowest. */
+  .dock-actions button { padding-inline: 10px; }
+}
+
+/* Narrower than a desktop browser's window will go (Chrome's and Edge's stop a little under
+   500px), so a phone: the buttons leave the words for a row of their own across the dock,
+   bigger to tap, with Play taking what the other two leave. */
+@media (max-width: 480px) {
+  .dock {
+    grid-template-columns: minmax(0, 43%) minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "shot info" "actions actions";
+    height: auto;
+  }
+  .dock-info { overflow: visible; }
+  .dock-chips { max-height: calc(2 * (1.3rem + 4px) + 4px); }
+  .dock-actions { align-self: auto; }
+  .dock-actions button { min-height: 42px; padding: 6px 14px; gap: 8px; font-size: 0.9rem; }
+  .dock-actions svg { width: 18px; height: 18px; }
+  .dock-actions .dock-play { flex: 1 1 auto; }
+  .dock-actions .is-icon { width: 42px; }
+}
+
+/* A phone held sideways: a few hundred pixels tall, and wider than the phone layout. The top bar
+   scrolls away with the shelf and the dock is a smaller version of itself (its height follows
+   the picture's), or the two would leave the shelf a strip too thin to use. */
+@media (max-width: 1040px) and (max-height: 500px) {
+  .topbar { position: relative; }
+  .dock { --shot-h: 84px; }
+}
+
+/* Nothing to point at on a touch screen, so a tile doesn't lift under the pointer. */
+@media (hover: none) {
+  .tile:hover { transform: none; }
+}
+
+/* Between the shelf and a game page: a short cross-fade instead of a cut (see app.js). */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: 0.12s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

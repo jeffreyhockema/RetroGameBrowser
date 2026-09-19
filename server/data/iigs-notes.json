@@ -1,0 +1,13 @@
+{
+ "note": "What's said in place of eXo's notes (the echo lines of a game's exception.bat) for eXo Apple IIGS games whose notes describe GSplus or eXo's setup of it, by the game's folder under eXoAppleIIGS\\!appleiigs. null says nothing. Disks are swapped with MAME's File Manager, which lists the game's other disks too (see iigsSpareDisks in server/lib/iigs.js). See server/lib/iigs.js.",
+ "games": {
+  "Gate (1992)": "When you are asked to insert Disk 2, put it in the second 3.5\" drive with MAME's File Manager: press Scroll Lock, then Tab, choose \"File Manager\", then \"floppydisk4 (flop4)\", then \"Disk2.2mg\" and \"Read-write\". Press Scroll Lock again to give the keyboard back to the game.",
+  "Mean 18 (1987)": "When asked to insert a disk click the mouse, then select \"Next Disk\" until some courses appear.\n\nTo play one of the homebrew courses, put one of the \"Homebrew\" disks in the second 3.5\" drive with MAME's File Manager: press Scroll Lock, then Tab, choose \"File Manager\", then \"floppydisk4 (flop4)\", then the disk and \"Read-only\". Press Scroll Lock again to give the keyboard back to the game, and press \"Next Disk\" until the new courses show.",
+  "Once Upon a Time III (1990)": "When you are asked to insert Disk 3, put it in the second 3.5\" drive in place of Disk 2 with MAME's File Manager: press Scroll Lock, then Tab, choose \"File Manager\", then \"floppydisk4 (flop4)\", then \"Disk3.2mg\" and \"Read-write\". Press Scroll Lock again to give the keyboard back to the game, click \"ok\", and play on. Swap disks the same way whenever the game asks.\n\nTo load a sample book select the \"File\" dropdown, select \"Load\", then use the \"Disk\" button to navigate to Disk 1. Double click \"Dragon.Tale\".",
+  "Strip Poker II (1987)": "To play with a data disk, when the game offers the choice put the data disk in the first 3.5\" drive with MAME's File Manager: press Scroll Lock, then Tab, choose \"File Manager\", then \"floppydisk3 (flop3)\", then the disk and \"Read-only\". Press Scroll Lock again to give the keyboard back to the game, then select \"Data Disk\" and click until the new players show.",
+  "Print Shop IIGS, The (1987)": "To start the game double click \"PS.SYSTEM\".",
+  "Print Shop Companion IIGS, The (1990)": "To start the game double click \"PSC.SYSTEM\".",
+  "Sensei (1991)": null,
+  "Space Shark (1990)": null
+ }
+}

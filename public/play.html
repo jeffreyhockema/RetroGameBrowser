@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/player/shell.css">
+</head>
+<body>
+  <div class="player-stage">
+    <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()" aria-label="Game screen"></canvas>
+  </div>
+
+  <!-- The one card every platform loads behind (see /player/shell.js). -->
+  <div class="player-note" id="player-note" role="status" aria-live="polite" hidden>
+    <h3 id="player-note-title"></h3>
+    <div class="player-note-bar" id="player-note-bar" hidden><div class="player-note-fill" id="player-note-fill"></div></div>
+    <p id="player-note-text" hidden></p>
+    <div class="player-note-ways" id="player-note-ways" hidden></div>
+  </div>
+
+  <!-- ScummVM's own download box: its build writes into these by name, and the shell reads
+       them back out onto the card above. Never shown (see shell.css). -->
+  <div id="download-modal" aria-hidden="true">
+    <div id="download-modal-title"><h3></h3></div>
+    <div id="download-modal-content">
+      <div id="download-modal-progress"><div id="download-modal-progress-fill"></div></div>
+      <p id="download-modal-progress-text"></p>
+      <p id="download-modal-speed-text"></p>
+    </div>
+  </div>
+
+  <script src="/player/shell.js"></script>
+  <script>
+  // scummvm.js declares and assigns plenty of globals (`run`, `params`, …), so everything of
+  // ours lives in this block; only `Module` (var, so still global) is shared with it.
+  {
+    const shell = PlayerShell.init({ engineName: 'ScummVM' });
+    shell.gettingReady();
+    // ScummVM says how its own download is going through the box above.
+    shell.watchScummvm();
+
+    const recent = [];
+    window.playerLog = recent; // for reading from the console
+    const remember = (line) => {
+      recent.push(line);
+      if (recent.length > 60) recent.shift();
+      // Only failures that stop a game; ScummVM logs plenty of harmless "couldn't open" lines.
+      if (/unrecognized game|could not find any (game|engine)|no game data|game data path does not exist|failed to load plugin|^error\b|out of memory/i.test(line)) {
+        shell.fail(line.replace(/^this\.program:\s*/, ''));
+      }
+    };
+
+    var Module = {
+      canvas: (() => {
+        const canvas = document.getElementById('canvas');
+        canvas.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault();
+          shell.stopped('the graphics context was lost');
+        });
+        return canvas;
+      })(),
+      print: (...parts) => { const line = parts.join(' '); console.log(line); remember(line); },
+      printErr: (...parts) => { const line = parts.join(' '); console.warn(line); remember(line); },
+      // Emscripten's own running commentary ("Downloading data...") says nothing the card
+      // doesn't already: ScummVM's download box is where the loading really shows.
+      setStatus() {},
+      monitorRunDependencies() {},
+      onRuntimeInitialized() {
+        if (typeof httpHideProgressBar === 'function') httpHideProgressBar();
+        document.getElementById('canvas').focus();
+        shell.playing();
+      },
+      onExit(status) {
+        shell.tell({ type: 'exit', status });
+      },
+      onAbort(reason) {
+        shell.stopped(reason);
+      },
+    };
+
+    // When the engine traps (a WebAssembly RuntimeError), its main loop is gone for good, but
+    // the audio callback and input handlers keep calling into it and fail on every call. So on
+    // the first trap: close audio, swallow input, and tell the app. These listeners and the
+    // AudioContext hook must be installed before scummvm.js loads so they run first.
+    const audioContexts = [];
+    for (const name of ['AudioContext', 'webkitAudioContext']) {
+      const Original = window[name];
+      if (!Original) continue;
+      window[name] = class extends Original {
+        constructor(...args) { super(...args); audioContexts.push(this); }
+      };
+    }
+    let crashed = false;
+    const swallow = (e) => { if (crashed) e.stopImmediatePropagation(); };
+    for (const type of ['pointerdown', 'pointerup', 'pointermove', 'mousedown', 'mouseup', 'mousemove',
+      'wheel', 'keydown', 'keyup', 'keypress', 'touchstart', 'touchmove', 'touchend']) {
+      window.addEventListener(type, swallow, { capture: true });
+    }
+    window.addEventListener('error', (e) => {
+      if (!(e.error instanceof WebAssembly.RuntimeError) || crashed) return;
+      crashed = true;
+      for (const ctx of audioContexts) ctx.close().catch(() => {});
+      shell.stopped(e.error.message);
+    });
+    document.addEventListener('pointerdown', () => document.getElementById('canvas').focus());
+  }
+  </script>
+  <script async src="/scummvm.js"></script>
+</body>
+</html>

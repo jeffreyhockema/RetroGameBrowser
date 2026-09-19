@@ -1,0 +1,34 @@
+{
+  "name": "retro-game-browser",
+  "version": "0.96.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "description": "Read-only web frontend for a LaunchBox game collection",
+  "type": "module",
+  "main": "server/start.js",
+  "scripts": {
+    "start": "node server/start.js",
+    "dev": "node --watch-path=server server/start.js",
+    "fetch-scummvm": "node scripts/fetch-scummvm-web.mjs",
+    "fetch-emulators": "node scripts/fetch-emulatorjs.mjs",
+    "fetch-mame": "node scripts/fetch-mame.mjs",
+    "build-mame-data": "node scripts/build-mame-data.mjs",
+    "local-account": "node scripts/local-account.mjs",
+    "test": "node --test \"test/**/*.test.js\"",
+    "setup": "node server/start.js --setup",
+    "package": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/package.ps1"
+  },
+  "engines": {
+    "node": ">=22.2"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "fast-xml-parser": "^5.11.1",
+    "flatbuffers": "^25.9.23",
+    "js-dos": "^8.4.1",
+    "sharp": "^0.35.4",
+    "socket.io": "^4.8.3",
+    "ws": "^8.21.3",
+    "yauzl": "^3.4.0"
+  }
+}

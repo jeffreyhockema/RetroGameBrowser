@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.png binary
+*.wasm binary
+# Windows batch files need CRLF line endings (a caret continuation can misbehave without them).
+*.cmd text eol=crlf

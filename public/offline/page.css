@@ -1,0 +1,26 @@
+/* The few differences between a downloaded game page and the one in the app, which this is
+   loaded after (app.css there is a copy of the app's own).
+
+   The app's page sits inside a shell with a top bar and the dock along the bottom; a download
+   is the page on its own. The app's <body class="on-game"> already takes most of that away. */
+
+body {
+  padding-bottom: 0;
+}
+
+/* Play is a link here, not a button: it goes to the player page. Without this it would carry
+   a link's underline. */
+.play-button { text-decoration: none; }
+
+/* Where the app has "Back to the list" and "Random Game", a download says what it is. */
+.offline-note {
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+}
+.offline-note strong { color: var(--ink); font-weight: 600; }
+
+/* The one version in the download plays; the rest are listed for what they are. */
+.version.is-elsewhere { opacity: 0.72; }
+.version-elsewhere { color: var(--ink-muted); font-size: 0.9rem; }
+
+.room-videos video { background: #000; }

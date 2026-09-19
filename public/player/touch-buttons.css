@@ -1,0 +1,85 @@
+/* The on-screen buttons of a DOS game on a phone (see touch-buttons.js), in EmulatorJS's
+   virtual gamepad's sizes, colours and places (vendor/emulatorjs/data/emulator.css,
+   .ejs_virtualGamepad_* and .ejs_dpad_*), so they match a console game's. */
+
+.touch-pad {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none; /* taps between the buttons reach the game */
+  color: #bcbcbc;
+  font-family: Avenir, "Avenir Next", "Helvetica Neue", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-weight: 500;
+  line-height: 1.7;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* On a phone held upright, the game moves to the top of the screen while the pad is up, which
+   leaves the pad the space under it rather than covering the bottom of the game. js-dos centres
+   its canvas with an inline top, worked out again whenever the screen changes size; it reads
+   where the canvas is when it maps a tap to the game, so moving it is safe. */
+@media (orientation: portrait) {
+  .touch-pad-shown .player-stage canvas { top: 0 !important; }
+}
+
+.touch-pad-parent { position: absolute; bottom: 50px; width: 100%; }
+
+.touch-pad-left,
+.touch-pad-right,
+.touch-pad-center { position: absolute; }
+.touch-pad-left { bottom: 50px; left: 10px; width: 125px; height: 125px; }
+.touch-pad-right { bottom: 50px; right: 10px; width: 130px; height: 130px; }
+.touch-pad-center { bottom: 10px; left: 50%; width: 124px; height: 30px; margin-left: -62px; }
+
+.touch-pad-button,
+.touch-pad-dpad { pointer-events: auto; touch-action: none; }
+
+.touch-pad-button {
+  position: absolute;
+  box-sizing: border-box;
+  width: 50px;
+  height: 50px;
+  line-height: 50px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  font-size: 30px;
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.15);
+  transition: all .2s;
+}
+.touch-pad-button.is-block { height: 31px; line-height: 31px; border-radius: 5px; }
+.touch-pad-button.is-down { background-color: #000000ad; }
+
+.touch-pad-dpad { position: absolute; inset: 0; opacity: .7; }
+.touch-pad-dpad-horizontal,
+.touch-pad-dpad-vertical { position: absolute; border-radius: 5px; overflow: hidden; }
+.touch-pad-dpad-horizontal { left: 0; top: 50%; width: 100%; height: 36px; transform: translate(0, -50%); }
+.touch-pad-dpad-vertical { left: 50%; top: 0; width: 36px; height: 100%; transform: translate(-50%, 0); }
+.touch-pad-dpad-bar { position: absolute; width: 100%; height: 100%; background: #787878; }
+
+/* The four arrowheads, dark until pressed. */
+.touch-pad-dpad-horizontal::before,
+.touch-pad-dpad-horizontal::after,
+.touch-pad-dpad-vertical::before,
+.touch-pad-dpad-vertical::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  width: 0;
+  height: 0;
+  border: 8px solid transparent;
+}
+.touch-pad-dpad-horizontal::before { left: 0; top: 50%; transform: translate(0, -50%); border-right-color: #333; }
+.touch-pad-dpad-horizontal::after { right: 0; top: 50%; transform: translate(0, -50%); border-left-color: #333; }
+.touch-pad-dpad-vertical::before { top: 0; left: 50%; transform: translate(-50%, 0); border-bottom-color: #333; }
+.touch-pad-dpad-vertical::after { bottom: 0; left: 50%; transform: translate(-50%, 0); border-top-color: #333; }
+.touch-pad-dpad.is-left .touch-pad-dpad-horizontal::before { border-right-color: #fff; }
+.touch-pad-dpad.is-right .touch-pad-dpad-horizontal::after { border-left-color: #fff; }
+.touch-pad-dpad.is-up .touch-pad-dpad-vertical::before { border-bottom-color: #fff; }
+.touch-pad-dpad.is-down .touch-pad-dpad-vertical::after { border-top-color: #fff; }

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Set up · Retro Game Browser</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/admin.css">
+  <link rel="stylesheet" href="/setup.css">
+  <script type="module" src="/js/setup.js"></script>
+</head>
+<body>
+  <!-- The first-run setup page (see server/setup.js and js/setup.js): shown on this PC only, until it's finished. -->
+  <header class="admin-top">
+    <h1>Set up Retro Game Browser</h1>
+  </header>
+
+  <main class="setup-main" id="setup">
+    <p class="setup-intro">Three things before your games show up: where LaunchBox is, who can open this site, and how people sign in. You can change any of them later.</p>
+
+    <section class="card step" id="step-launchbox" aria-labelledby="launchbox-title">
+      <h2 id="launchbox-title"><span class="step-no">1</span> Your LaunchBox folder</h2>
+      <p class="sub">The folder with LaunchBox.exe in it. Retro Game Browser only reads it, and never changes anything there.</p>
+      <div class="buttons found" id="found"><span class="stamp">Looking for LaunchBox…</span></div>
+      <form class="path-row" id="launchbox-form">
+        <input type="text" id="launchbox-path" placeholder="C:\Users\you\LaunchBox" autocomplete="off" spellcheck="false" aria-label="LaunchBox folder">
+        <button type="submit" class="button">Check</button>
+      </form>
+      <div class="result" id="launchbox-result" role="status"></div>
+      <p class="hint" id="profiles-hint" hidden></p>
+    </section>
+
+    <section class="card step" id="step-network" aria-labelledby="network-title">
+      <h2 id="network-title"><span class="step-no">2</span> Who can open it</h2>
+      <div class="checks">
+        <label class="check">
+          <input type="radio" name="network" value="network" checked>
+          <span><b>Every device on your home network</b>
+            <span class="line2" id="network-help">Phones, tablets, TVs and other computers open it at this PC's address. Anyone on your network can play without signing in.</span></span>
+        </label>
+        <label class="check">
+          <input type="radio" name="network" value="this-pc">
+          <span><b>Only this PC</b>
+            <span class="line2">Choose this if other devices will only reach it through a Cloudflare Tunnel (see docs/guide.md), or not at all.</span></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card step" id="step-signin" aria-labelledby="signin-title">
+      <h2 id="signin-title"><span class="step-no">3</span> Signing in</h2>
+      <p class="sub">Accounts keep each person's favorites apart, and let you choose who may play from outside your home. You get an admin page to manage them. Pick one, both or neither.</p>
+
+      <div class="checks">
+        <label class="check">
+          <input type="checkbox" id="use-google">
+          <span><b>Sign in with Google</b>
+            <span class="line2">Needs a free client ID from Google (about 10 minutes). Google only allows sign-in at http://localhost on this PC, or at an https:// address such as a Cloudflare Tunnel's.</span></span>
+        </label>
+        <fieldset class="options" id="google-options" hidden>
+          <label class="field">Google client ID
+            <input type="text" id="google-client" placeholder="1234567890-abc123.apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="field">Your Google address <span class="muted">(you'll be the owner)</span>
+            <input type="email" id="google-owner" placeholder="you@gmail.com" autocomplete="email" spellcheck="false">
+          </label>
+          <label class="field">Public address <span class="muted">(optional: your tunnel's, for phones and friends)</span>
+            <input type="text" id="google-host" placeholder="games.example.com" autocomplete="off" spellcheck="false">
+          </label>
+          <details class="howto">
+            <summary>How to get a client ID</summary>
+            <ol>
+              <li>Open <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> and create a project (any name).</li>
+              <li><b>APIs &amp; Services → OAuth consent screen</b>: choose <b>External</b>, fill in an app name and your email, and save. Leave it in <b>Testing</b> and add the Google accounts that will sign in as test users, or publish it (it only asks for name, email and picture, which needs no review).</li>
+              <li><b>APIs &amp; Services → Credentials → Create credentials → OAuth client ID</b>, type <b>Web application</b>. Under <b>Authorized JavaScript origins</b> add <span id="google-origins"></span>. No redirect URIs are needed.</li>
+              <li>Copy the <b>Client ID</b> (not the secret, which isn't used) into the box above.</li>
+            </ol>
+          </details>
+        </fieldset>
+
+        <label class="check">
+          <input type="checkbox" id="use-local">
+          <span><b>Local accounts</b>
+            <span class="line2">A username and password kept on this PC, for people without Google (or if you'd rather not set it up).</span></span>
+        </label>
+        <fieldset class="options" id="local-options" hidden>
+          <div id="local-owner">
+            <p class="muted" id="local-owner-intro">Without Google, you're the owner as this account:</p>
+            <label class="field">Username
+              <input type="text" id="local-username" autocomplete="username" spellcheck="false" autocapitalize="off">
+            </label>
+            <label class="field">Your name <span class="muted">(optional)</span>
+              <input type="text" id="local-name" autocomplete="name">
+            </label>
+            <label class="field">Password <span class="muted">(at least 8 characters)</span>
+              <input type="password" id="local-password" autocomplete="new-password">
+            </label>
+            <label class="field">Password again
+              <input type="password" id="local-password2" autocomplete="new-password">
+            </label>
+          </div>
+          <p class="muted" id="local-owner-kept" hidden></p>
+          <label class="check">
+            <input type="checkbox" id="local-signup">
+            <span>Let people make their own accounts
+              <span class="line2">A new account can only browse until you let it play, on the admin page. Otherwise you add accounts there yourself.</span></span>
+          </label>
+        </fieldset>
+      </div>
+      <p class="hint" id="no-signin" hidden>With no sign-in, everyone on your network can play and shares one set of favorites, the admin page opens only on this PC, and people coming from the internet can only browse.</p>
+    </section>
+
+    <section class="finish">
+      <p class="error" id="finish-error" role="alert" hidden></p>
+      <button type="button" class="button is-primary is-big" id="finish">Finish setup</button>
+    </section>
+  </main>
+
+  <main class="setup-main" id="done" hidden>
+    <section class="card step">
+      <h2 id="done-title">Starting Retro Game Browser…</h2>
+      <p class="sub" id="done-sub">Reading your LaunchBox library. The first time can take a minute.</p>
+      <ul class="next" id="next"></ul>
+      <div class="buttons">
+        <a class="button is-primary is-big" id="open" href="/" aria-disabled="true">Open Retro Game Browser</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

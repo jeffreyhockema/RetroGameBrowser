@@ -1,0 +1,6 @@
+{
+  "sources": {},
+  "sets": {
+    "calspeed": "Crashes a few seconds after starting in the browser version of MAME."
+  }
+}

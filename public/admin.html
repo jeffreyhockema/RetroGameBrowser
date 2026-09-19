@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · Retro Game Browser</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/admin.css">
+  <script type="module" src="/js/admin.js"></script>
+</head>
+<body>
+  <!-- The owner's admin page: built by js/admin.js from /api/admin, which answers the owner only. -->
+  <header class="admin-top">
+    <a class="admin-back" href="/">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      <span>Games</span>
+    </a>
+    <h1>Admin</h1>
+    <span class="admin-who" id="who"></span>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Admin sections" hidden>
+    <a href="#overview" data-tab="overview">Overview</a>
+    <a href="#live" data-tab="live">Right now</a>
+    <a href="#accounts" data-tab="accounts">Accounts</a>
+    <a href="#activity" data-tab="activity">Activity</a>
+    <a href="#server" data-tab="server">Server</a>
+  </nav>
+
+  <main class="admin-main">
+    <div class="gate" id="gate">
+      <p>Loading…</p>
+    </div>
+    <section class="panel" id="panel-overview" data-panel="overview" hidden></section>
+    <section class="panel" id="panel-live" data-panel="live" hidden></section>
+    <section class="panel" id="panel-accounts" data-panel="accounts" hidden></section>
+    <section class="panel" id="panel-activity" data-panel="activity" hidden></section>
+    <section class="panel" id="panel-server" data-panel="server" hidden></section>
+  </main>
+
+  <div class="notice" id="notice" role="status" hidden></div>
+</body>
+</html>

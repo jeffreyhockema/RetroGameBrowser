@@ -1,0 +1,12 @@
+{
+  "_comment": "Where LaunchBox keeps a platform's pictures when they aren't under its own name (see platformIcon and platformLogo in server/lib/library.js). icons: the name of its icon in Images\\Platform Icons\\Platforms, where LaunchBox's icon set calls the platform something else. logos: for a platform with nothing in Images\\Platforms\\<platform>\\Clear Logo, a logo from elsewhere in LaunchBox, relative to its folder; these come from theme folders, drawn on a canvas the size of the screen, and are trimmed to the logo itself. Only ones that read on the shelf's dark heading are listed.",
+  "icons": {
+    "MS-DOS": "MS DOS",
+    "Windows 3x": "Windows 3.X",
+    "Windows 9x": "Windows",
+    "NEC TurboGrafx-16": "NEC TurboGrafx 16"
+  },
+  "logos": {
+    "Sega Saturn": "Themes\\Unified\\Images\\Theme\\Logo\\Sega Saturn.png"
+  }
+}

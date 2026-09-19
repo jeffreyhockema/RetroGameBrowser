@@ -1,0 +1,14 @@
+{
+ "_about": "Engines and game IDs that crash in the current browser build of ScummVM (vendor/scummvm-web, demo build from July 2026). Found by launching one game per engine in headless Chrome (2026-09-10). Remove entries once our own build fixes them.",
+ "engines": {
+  "adl": "Crashes on its first screen in the browser version of ScummVM.",
+  "hopkins": "Crashes on start in the browser version of ScummVM.",
+  "made": "Crashes on start in the browser version of ScummVM.",
+  "private": "Crashes on start in the browser version of ScummVM.",
+  "sword25": "Crashes on start in the browser version of ScummVM."
+ },
+ "games": {
+  "ootopos": "Crashes on start in the browser version of ScummVM.",
+  "ultima1": "Not included in the browser version of ScummVM (ScummVM treats it as unfinished)."
+ }
+}

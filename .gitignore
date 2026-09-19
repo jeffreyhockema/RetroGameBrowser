@@ -1,0 +1,12 @@
+node_modules/
+cache/
+# The fetched browser builds (npm run fetch-*), and what a killed fetch leaves behind.
+vendor/
+config.local.json
+userdata/
+# The server's log (see server/lib/logfile.js).
+logs/
+# The installer's build (see installer/package.ps1).
+installer/stage/
+installer/.cache/
+dist/

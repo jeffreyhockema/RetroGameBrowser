@@ -1,0 +1,47 @@
+/* The setup page (see setup.html), over the admin page's styles (admin.css). One column of steps. */
+
+.setup-main { max-width: 760px; margin: 0 auto; padding: 18px var(--gutter) 60px; }
+.setup-main > * + * { margin-top: 16px; }
+.setup-intro { margin: 4px 0 0; color: var(--ink-muted); }
+
+.step h2 { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; }
+.step-no { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--teal); color: var(--teal-ink); font-size: 0.85rem; font-weight: 700; }
+
+.found { margin-bottom: 10px; }
+.path-row { display: flex; gap: 8px; }
+.path-row input { flex: 1 1 auto; font-family: var(--mono); }
+
+.result { margin-top: 10px; }
+.result:empty { display: none; }
+.result.is-ok { color: var(--ok); }
+.result.is-bad { color: var(--alarm); }
+.result .line2 { color: var(--ink-muted); }
+.hint { margin: 12px 0 0; padding: 10px 12px; background: var(--dusk-deep); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink-muted); font-size: 0.9rem; }
+
+.options { display: grid; gap: 12px; margin: 0 0 4px 28px; padding: 0; border: 0; min-width: 0; }
+.field { display: block; font-weight: 500; }
+.field input { display: block; width: 100%; margin-top: 4px; font-weight: 400; }
+input[type="password"] { min-height: 34px; padding: 5px 10px; background: var(--dusk-deep); border: 1px solid var(--line-strong); border-radius: 8px; min-width: 0; }
+.field.is-bad input { border-color: var(--alarm); }
+#local-owner { display: grid; gap: 12px; }
+#local-owner p { margin: 0; }
+.check input[type="radio"] { margin: 3px 0 0; width: 18px; height: 18px; accent-color: var(--teal); flex: none; }
+
+.howto { color: var(--ink-muted); font-size: 0.9rem; }
+.howto summary { cursor: pointer; color: var(--sea); }
+.howto ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.howto b { color: var(--ink); font-weight: 500; }
+.howto code, .next code { font-family: var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+
+.finish { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.error { margin: 0; padding: 10px 12px; width: 100%; border: 1px solid var(--alarm); border-radius: 8px; color: var(--alarm); }
+.button.is-big { min-height: 42px; padding: 8px 22px; font-size: 1rem; }
+.button[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+
+.next { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 8px; }
+
+@media (max-width: 520px) {
+  .path-row { flex-direction: column; }
+  .options { margin-left: 0; }
+  .finish { align-items: stretch; }
+}

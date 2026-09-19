@@ -1,0 +1,13 @@
+{
+ "note": "eXo Apple IIGS games that don't work in the browser's MAME, by the game's folder under eXoAppleIIGS\\!appleiigs, each with what goes wrong. Found by starting every game in the browser (see server/lib/iigs.js).",
+ "games": {
+  "Great Western Shootout (1989)": "Crashes inside the browser version of MAME a few seconds after it starts.",
+  "Balance of Power - The 1990 Edition (1989)": "Stops at \"This application needs a tool in the System Tools folder\": the system on its disk is missing one it expects.",
+  "Columns (1991)": "Stops at a blank screen once the game takes over from the system, in the browser version of MAME.",
+  "Boggled (1992)": "Stops at a blank screen once the game takes over from the system, in the browser version of MAME.",
+  "Hammurabi (2000)": "Stops at an empty text screen with a cursor once the game takes over from the system, in the browser version of MAME.",
+  "DungeonGS (1991)": "Stops at an empty text screen with a cursor once the game takes over from the system, in the browser version of MAME.",
+  "Missile Attack (1992)": "Stops at an empty text screen with a cursor once the game takes over from the system, in the browser version of MAME.",
+  "Questmaster I - The Prism of Heheutotol (1990)": "Stops at an empty text screen with a cursor once the game takes over from the system, in the browser version of MAME."
+ }
+}

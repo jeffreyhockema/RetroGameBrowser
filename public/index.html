@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retro Game Browser</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='1' width='10' height='14' rx='1' fill='%23f4d35e'/%3E%3Crect x='5' y='3' width='6' height='5' fill='%2316132b'/%3E%3C/svg%3E">
+  <!-- The library is the one thing the shelf waits for, so its download starts with the page
+       rather than once the scripts have loaded and asked for it. -->
+  <link rel="preload" href="/api/library" as="fetch" crossorigin>
+  <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/inter.css">
+  <link rel="stylesheet" href="/app.css">
+  <!-- Every module at once, rather than each one as the module before it is read. -->
+  <link rel="modulepreload" href="/js/app.js">
+  <link rel="modulepreload" href="/js/util.js">
+  <link rel="modulepreload" href="/js/state.js">
+  <link rel="modulepreload" href="/js/settings.js">
+  <link rel="modulepreload" href="/js/shelf.js">
+  <link rel="modulepreload" href="/js/filters.js">
+  <link rel="modulepreload" href="/js/room.js">
+  <link rel="modulepreload" href="/js/player.js">
+  <link rel="modulepreload" href="/js/typing.js">
+  <link rel="modulepreload" href="/js/dock.js">
+  <link rel="modulepreload" href="/js/details.js">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">
+      <!-- Home: every game, with nothing filtering it (see shelf.js). -->
+      <a href="/" data-back-home title="All games">
+        <!-- logo.webp is cropped to the artwork (no empty edge) at 900 px, twice the widest it's
+             ever shown. -->
+        <img src="/logo.webp" width="900" height="120" alt="Retro Game Browser">
+      </a>
+    </h1>
+    <form class="search" id="filters" role="search">
+      <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm10.5 3-4.8-4.8"/></svg>
+      <label class="field-search">
+        <span class="visually-hidden">Search</span>
+        <input type="search" name="q" id="q" placeholder="Search titles, developers, series…" autocomplete="off">
+      </label>
+    </form>
+    <!-- Who's signed in, and what each person can change for themselves; built by js/settings.js. -->
+    <div class="account" id="account">
+      <button type="button" class="profile-button" id="profile-button" aria-haspopup="dialog" aria-expanded="false" aria-controls="profile-menu" aria-label="Account and preferences" title="Account and preferences">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v1.5c0 .3.2.5.5.5h15c.3 0 .5-.2.5-.5V19c0-2.8-3.6-5-8-5Z"/></svg>
+      </button>
+      <div class="profile-menu" id="profile-menu" role="dialog" aria-label="Account and preferences" hidden>
+        <!-- Who's signed in, or a way to sign in. -->
+        <div class="profile-head" id="profile-head"></div>
+
+        <div class="profile-group" id="profile-filters">
+          <label class="switch-row">
+            <span class="switch-text">
+              <span>Show games without an English release</span>
+              <span class="switch-help" id="setting-show-non-english-count"></span>
+            </span>
+            <input type="checkbox" role="switch" class="switch" id="setting-show-non-english">
+          </label>
+          <!-- Only for someone who can play games (see js/settings.js). -->
+          <label class="switch-row" id="setting-group-show-broken">
+            <span class="switch-text">
+              <span>Show games that don't work in the browser</span>
+              <span class="switch-help" id="setting-show-broken-count"></span>
+            </span>
+            <input type="checkbox" role="switch" class="switch" id="setting-show-broken">
+          </label>
+        </div>
+
+        <div class="profile-group" id="profile-links">
+          <!-- Only for someone who can play games. -->
+          <button type="button" class="profile-item" id="open-controllers">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 8h10a4 4 0 0 1 4 4l.6 4.3a2.3 2.3 0 0 1-4 1.8L15.4 16H8.6l-2.2 2.1a2.3 2.3 0 0 1-4-1.8L3 12a4 4 0 0 1 4-4Zm0 2.5v3M5.5 12h3M15.5 11.5h.01M17.5 13.5h.01"/></svg>
+            <span>Controllers</span>
+          </button>
+          <!-- Only for the owner. -->
+          <a class="profile-item" id="open-admin" href="/admin">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3 4.5 6v5.5c0 4.5 3.2 8.3 7.5 9.5 4.3-1.2 7.5-5 7.5-9.5V6L12 3Z"/></svg>
+            <span>Admin</span>
+          </a>
+          <!-- Only for a local account (see js/settings.js). -->
+          <button type="button" class="profile-item" id="open-password">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 11V8a5 5 0 0 1 10 0v3M5.5 11h13a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1ZM12 15v2"/></svg>
+            <span>Change password</span>
+          </button>
+          <!-- Only while signed in. -->
+          <button type="button" class="profile-item" id="sign-out">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>
+            <span>Sign out</span>
+          </button>
+        </div>
+        <p class="profile-status" id="settings-status" aria-live="polite"></p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Each player's controller layout in console games; opened from the profile menu. -->
+  <dialog class="controllers-dialog" id="controllers-dialog" aria-labelledby="controllers-title">
+    <div class="dialog-head">
+      <h2 id="controllers-title">Controllers</h2>
+      <button type="button" class="dialog-close" id="controllers-close">Done</button>
+    </div>
+    <!-- A row for each player, built by js/settings.js. -->
+    <div class="layout-rows" id="controller-layouts"></div>
+    <p class="setting-help"><strong>Controller Layout 1</strong> puts each button where it was on the console's own controller (A right, B bottom). Right for most Xbox, PlayStation and Switch controllers.</p>
+    <p class="setting-help"><strong>Controller Layout 2</strong> follows the letters on an Xbox controller (A bottom, B right). Try it if a Switch controller's buttons come out swapped in Safari.</p>
+    <p class="setting-help">For console games. Controllers become players 1 to 4 in the order they're first pressed. A game whose buttons you changed in its own control settings keeps them.</p>
+  </dialog>
+
+  <!-- Signing in with a local account, or making one; opened from the profile menu's "Sign in
+       with Local Account" (see js/settings.js, which fills the form in). -->
+  <dialog class="controllers-dialog password-dialog" id="local-dialog" aria-labelledby="local-title">
+    <div class="dialog-head">
+      <h2 id="local-title">Sign in</h2>
+      <button type="button" class="dialog-close" id="local-close">Cancel</button>
+    </div>
+    <div id="local-signin"></div>
+  </dialog>
+
+  <!-- A local account changes its password; opened from the profile menu (see js/settings.js). -->
+  <dialog class="controllers-dialog password-dialog" id="password-dialog" aria-labelledby="password-title">
+    <form class="local-form" id="password-form" method="dialog">
+      <div class="dialog-head">
+        <h2 id="password-title">Change password</h2>
+        <button type="button" class="dialog-close" id="password-close">Cancel</button>
+      </div>
+      <!-- For password managers: which account this is. -->
+      <input type="text" class="visually-hidden" id="password-username" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
+      <label class="field"><span>Current password</span><input type="password" id="password-current" autocomplete="current-password" required></label>
+      <label class="field"><span>New password</span><input type="password" id="password-new" autocomplete="new-password" minlength="8" required></label>
+      <label class="field"><span>New password again</span><input type="password" id="password-again" autocomplete="new-password" minlength="8" required></label>
+      <p class="form-note">At least 8 characters. You stay signed in here; everywhere else you'll need the new one.</p>
+      <p class="form-error" id="password-error" role="alert"></p>
+      <button type="submit" class="form-submit">Change password</button>
+    </form>
+  </dialog>
+
+  <div id="shelf-view" class="app">
+    <!-- The sidebar's lists are built by js/shelf.js from the loaded library. -->
+    <nav class="sidebar" id="sidebar" aria-label="Browse">
+      <ul class="side-list" id="side-lists"></ul>
+      <h2 class="side-title">Platforms</h2>
+      <ul class="side-list" id="side-platforms"></ul>
+      <h2 class="side-title">Genres</h2>
+      <ul class="side-list" id="side-genres"></ul>
+    </nav>
+    <main class="main">
+      <!-- What the filters add up to: a platform's logo, the name of a genre or list, or "All
+           games". Its parts are filled in by js/shelf.js. -->
+      <div class="scope-head" id="scope-head">
+        <div class="scope-id" id="scope-id"></div>
+        <p class="scope-note" id="result-count" aria-live="polite"></p>
+        <div class="scope-actions" id="scope-actions"></div>
+        <!-- Only on one platform's shelf: what LaunchBox says about the platform itself. -->
+        <div class="scope-about" id="scope-about" hidden></div>
+      </div>
+      <div class="toolbar">
+        <!-- The filter chips are built by js/filters.js: the menus, then Only Favorites with Sort
+             at the far end of its row. The two move to a row of their own together. -->
+        <div class="chips" id="chips"></div>
+        <div class="chips chips-end" id="chips-end"></div>
+      </div>
+      <!-- The tiles go in as chunks of rows, each a list of its own (see js/shelf.js). -->
+      <div class="shelf" id="shelf" role="group" aria-label="Games"></div>
+      <p class="empty" id="empty" hidden></p>
+    </main>
+  </div>
+
+  <!-- A game's page, over the shelf (see js/app.js); focusable so the keyboard scrolls it. -->
+  <div id="game-view" tabindex="-1" hidden></div>
+
+  <div id="player" class="player" hidden>
+    <div class="player-bar">
+      <p class="player-title"><strong id="player-title"></strong> <span id="player-version"></span></p>
+      <p class="player-status" id="player-status" aria-live="polite"></p>
+      <button type="button" class="player-button" data-act="mouse" aria-pressed="false" hidden
+        title="For games that turn the view with the mouse: the pointer stays in the game until you press Esc">Lock mouse</button>
+      <!-- Only for computers with a keyboard of their own (the C64); see player.js. -->
+      <button type="button" class="player-button" data-act="keys" aria-pressed="false" hidden>Type on the keyboard</button>
+      <!-- On a touch screen: brings up the phone's own keyboard for the game (see js/typing.js). -->
+      <button type="button" class="player-button" data-act="type" aria-pressed="false" hidden
+        title="Bring up the keyboard, for games that ask you to type or press a key">Keyboard</button>
+      <!-- On a touch screen, for a DOS game: its on-screen buttons (see js/touchbuttons.js). -->
+      <button type="button" class="player-button" data-act="touch" aria-expanded="false" aria-controls="touch-editor" hidden
+        title="Choose the on-screen buttons and the key each one presses">Buttons</button>
+      <!-- While hosting a game for a friend (see js/player.js): the link to send them, and who's joined. -->
+      <button type="button" class="player-button" data-act="invite" aria-expanded="false" aria-controls="invite-sheet" hidden
+        title="The link a friend opens to join this game as the next player">Invite link</button>
+      <button type="button" class="player-button" data-act="fullscreen">Full screen</button>
+      <button type="button" class="player-button" data-act="leave">Leave game</button>
+      <textarea class="player-typing" id="player-typing" rows="1" aria-label="Type into the game"
+        autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="enter"></textarea>
+      <div class="invite-sheet" id="invite-sheet" role="dialog" aria-labelledby="invite-title" hidden>
+        <h2 id="invite-title">Play with a friend</h2>
+        <p class="invite-help" id="invite-help">Send this link. Whoever opens it joins this game as the next player, with their own keyboard or controller, and needs no account. Up to three friends can join.</p>
+        <div class="invite-link">
+          <input type="text" id="invite-link" readonly aria-label="Invite link">
+          <button type="button" class="player-button" data-act="copy-link">Copy</button>
+          <button type="button" class="player-button" data-act="share-link" hidden>Share…</button>
+        </div>
+        <ul class="invite-players" id="invite-players" aria-label="Players"></ul>
+        <p class="invite-build"><a href="/netplay-stats.html" target="_blank" rel="noopener">Detailed stats</a> <span id="invite-build"></span></p>
+      </div>
+    </div>
+    <!-- The keys a phone's keyboard doesn't have, while it's up. -->
+    <div class="player-keys" id="player-keys" hidden>
+      <button type="button" class="player-key" data-act="key" data-key="Escape">Esc</button>
+      <button type="button" class="player-key" data-act="key" data-key="Tab">Tab</button>
+      <button type="button" class="player-key" data-act="key" data-key="ArrowLeft" aria-label="Left arrow">←</button>
+      <button type="button" class="player-key" data-act="key" data-key="ArrowUp" aria-label="Up arrow">↑</button>
+      <button type="button" class="player-key" data-act="key" data-key="ArrowDown" aria-label="Down arrow">↓</button>
+      <button type="button" class="player-key" data-act="key" data-key="ArrowRight" aria-label="Right arrow">→</button>
+      <button type="button" class="player-key" data-act="key" data-key="Enter">Enter</button>
+    </div>
+    <!-- The game's iframe is created per launch by js/player.js. -->
+    <div class="player-crash" id="player-crash" role="alert" hidden>
+      <h2 id="player-crash-title">This game stopped</h2>
+      <p id="player-crash-text"></p>
+      <p class="player-crash-actions">
+        <button type="button" class="player-button" data-act="back">Back to the game page</button>
+      </p>
+    </div>
+  </div>
+
+  <!-- The sheet that picks a DOS game's on-screen buttons, filled in by js/touchbuttons.js. -->
+  <div id="touch-editor" class="touch-editor" role="dialog" aria-modal="true" aria-labelledby="touch-title" hidden></div>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <div class="lightbox-bar">
+      <p class="lightbox-count" aria-live="polite"></p>
+      <button class="lightbox-nav lightbox-prev" type="button" aria-label="Previous">‹<span class="lightbox-nav-word">Previous</span></button>
+      <button class="lightbox-nav lightbox-next" type="button" aria-label="Next"><span class="lightbox-nav-word">Next</span>›</button>
+      <button class="lightbox-close" type="button">Close</button>
+    </div>
+    <div class="lightbox-stage"></div>
+  </div>
+
+  <!-- Only while browsing: the game under the pointer, or the one clicked to select it. A game
+       page says all this itself. Filled in by js/dock.js. -->
+  <footer class="dock" id="dock">
+    <div class="dock-shot-box" id="dock-shot"></div>
+    <div class="dock-main" id="dock-main"></div>
+    <dl class="dock-facts" id="dock-facts"></dl>
+    <button class="dock-close" id="dock-close" type="button" aria-label="Close" title="Close (Esc)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </footer>
+
+  <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
+  <audio id="music" preload="none"></audio>
+</body>
+</html>
