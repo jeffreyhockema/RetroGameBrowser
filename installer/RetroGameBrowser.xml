@@ -5,8 +5,13 @@
   A template: service\install-service.ps1 copies it next to RetroGameBrowser.exe (WinSW, renamed
   so the Services list shows a sensible program) with @DATA_DIR@ filled in. WinSW reads the copy
   every time the service starts, so a change to the program, its arguments or its environment
-  needs only a restart; the account, start mode and failure actions are set when the service is
-  installed. %BASE% is the folder RetroGameBrowser.exe is in.
+  needs only a restart. What Windows itself keeps about the service (its name and description,
+  start mode, failure actions) is applied by install-service.ps1, which runs elevated: on the
+  first install through WinSW's install command, on an update through its refresh command.
+  WinSW's own autoRefresh (apply the file when it's newer than the service's registry key, at
+  every start) is off below: it needs rights on the service that LocalService doesn't have, so
+  the service fails to start with "Failed to open the service. Access is denied" (WinSW issue
+  1285). %BASE% is the folder RetroGameBrowser.exe is in.
 
   Service runtime:
     Account: NT AUTHORITY\LocalService, the built-in low-privilege account, until the owner
@@ -50,6 +55,8 @@
 
   <log mode="reset" />
   <logpath>@DATA_DIR@\logs\service</logpath>
+
+  <autoRefresh>false</autoRefresh>
 
   <startmode>Automatic</startmode>
   <delayedAutoStart>true</delayedAutoStart>

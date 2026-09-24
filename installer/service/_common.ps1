@@ -49,16 +49,81 @@ function Set-RgbDataAcl([string]$DataDir, [string]$Account) {
   if ($LASTEXITCODE -ne 0) { throw "icacls couldn't set the data folder's permissions (exit $LASTEXITCODE)." }
 }
 
-# Waits for the server to answer on its port; $true once it does.
+# The message at the bottom of an exception's chain, with the Windows error code when it has one.
+# Start-Service's own message ("Cannot start service X on computer '.'") says nothing; the reason
+# ("The service did not start due to a logon failure", say) is two exceptions down.
+function Get-RgbInnermostMessage($Exception) {
+  $ex = $Exception
+  while ($ex.InnerException) { $ex = $ex.InnerException }
+  $msg = $ex.Message.Trim()
+  if ($ex -is [System.ComponentModel.Win32Exception]) { $msg += " (Windows error $($ex.NativeErrorCode))" }
+  return $msg
+}
+
+# What Windows, WinSW and the server had to say about a service that didn't start: for the
+# install log, which is all the installer's hidden run leaves behind.
+function Write-RgbServiceDiagnostics([string]$DataDir, [datetime]$Since) {
+  $id = $Global:RgbServiceId
+  Write-Host ''
+  Write-Host '---- Why the service didn''t start ----' -ForegroundColor Cyan
+
+  # The program the service points at: antivirus quarantines an unsigned service program now
+  # and then, and the service can't start without it.
+  $svc = Get-CimInstance Win32_Service -Filter "Name='$id'" -ErrorAction SilentlyContinue
+  if ($svc) {
+    Write-Host "Service:      $($svc.PathName)"
+    Write-Host "Runs as:      $($svc.StartName)  (state: $($svc.State))"
+    $exe = if ($svc.PathName -match '^"([^"]+)"') { $Matches[1] } else { ($svc.PathName -split ' ')[0] }
+    if ($exe -and -not (Test-Path $exe)) {
+      Write-Note "$exe is missing. Check Windows Security > Protection history: an antivirus may have quarantined it. Restore it, then run the installer again."
+    }
+  } else {
+    Write-Note "Windows has no service named $id."
+  }
+
+  # What Windows logged: the Service Control Manager (System log) and the service itself
+  # (WinSW writes to the Application log under the service's name).
+  foreach ($log in @(@{ LogName = 'System'; ProviderName = 'Service Control Manager' }, @{ LogName = 'Application'; ProviderName = $id })) {
+    $events = @()
+    try { $events = @(Get-WinEvent -FilterHashtable ($log + @{ StartTime = $Since.AddSeconds(-5) }) -MaxEvents 20 -ErrorAction Stop) } catch { }
+    if ($log.LogName -eq 'System') { $events = @($events | Where-Object { $_.Message -match [regex]::Escape($id) -or $_.Message -match [regex]::Escape($Global:RgbDisplayName) }) }
+    Write-Host "$($log.LogName) log ($($log.ProviderName)): $(if ($events.Count) { "$($events.Count) entries" } else { 'nothing' })"
+    foreach ($e in ($events | Sort-Object TimeCreated)) {
+      Write-Host ("  {0:HH:mm:ss}  [{1}] {2}" -f $e.TimeCreated, $e.Id, (($e.Message -replace '\s+', ' ').Trim()))
+    }
+  }
+
+  # What WinSW and the server printed last.
+  $files = @()
+  $serviceLogs = Join-Path $DataDir 'logs\service'
+  if (Test-Path $serviceLogs) { $files += Get-ChildItem $serviceLogs -Filter '*.log' -ErrorAction SilentlyContinue }
+  $files += Get-ChildItem (Join-Path $DataDir 'logs') -Filter 'server-*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
+  foreach ($f in $files) {
+    if (-not $f) { continue }
+    $tail = @(Get-Content $f.FullName -Tail 25 -ErrorAction SilentlyContinue)
+    Write-Host "$($f.FullName) ($(if ($tail.Count) { "last $($tail.Count) lines" } else { 'empty' })):"
+    foreach ($line in $tail) { Write-Host "  $line" }
+  }
+  if (-not (Test-Path $serviceLogs) -or -not (Get-ChildItem $serviceLogs -Filter '*.log' -ErrorAction SilentlyContinue)) {
+    Write-Note "WinSW wrote nothing in $serviceLogs, so the program didn't get as far as running."
+  }
+  Write-Host '----'
+}
+
+# Waits for the server to answer on its port; $true once it does. Asked by name and by IPv4
+# address both: a copy that hasn't been set up yet listens on 127.0.0.1 only, and "localhost"
+# may go to ::1 first.
 function Wait-RgbServer([int]$Port, [int]$Seconds = 30) {
   for ($i = 0; $i -lt $Seconds * 2; $i++) {
     Start-Sleep -Milliseconds 500
-    try {
-      $null = Invoke-WebRequest -Uri "http://localhost:$Port/" -UseBasicParsing -TimeoutSec 2
-      return $true
-    } catch {
-      # An answer with an error status still means it's up.
-      if ($_.Exception.Response) { return $true }
+    foreach ($hostName in @('localhost', '127.0.0.1')) {
+      try {
+        $null = Invoke-WebRequest -Uri "http://${hostName}:$Port/" -UseBasicParsing -TimeoutSec 2
+        return $true
+      } catch {
+        # An answer with an error status still means it's up.
+        if ($_.Exception.Response) { return $true }
+      }
     }
   }
   return $false

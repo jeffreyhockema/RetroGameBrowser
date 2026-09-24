@@ -77,7 +77,12 @@ $existing = Get-Service -Name $ServiceId -ErrorAction SilentlyContinue
 if ($existing) {
   Write-Step 'Service already installed: stopping it for the update'
   if ($existing.Status -ne 'Stopped') { Stop-Service -Name $ServiceId -Force }
-  Write-Ok "Keeping it as it is (runs as $(Get-RgbServiceAccount))"
+  # The descriptor was just rewritten; what Windows keeps about the service (name, description,
+  # start mode, failure actions) follows it here, with administrator rights. The service's own
+  # account can't do this itself, which is why the descriptor turns WinSW's autoRefresh off.
+  & $winswExe refresh $winswXml --no-elevate
+  if ($LASTEXITCODE -ne 0) { throw "WinSW couldn't refresh the service's settings (exit $LASTEXITCODE)." }
+  Write-Ok "Settings refreshed; keeping the account it runs as ($(Get-RgbServiceAccount))"
 } else {
   Write-Step "Registering the service $ServiceId"
   & $winswExe install $winswXml --no-elevate
@@ -106,19 +111,42 @@ if ($listening) {
 }
 
 # ---- Start ----
+# The install log is all the installer's hidden run leaves, so a service that won't start is
+# explained here: Windows' reason (which Start-Service's own message leaves out), what it logged,
+# and what WinSW and the server printed.
 Write-Step 'Starting the service'
-Start-Service -Name $ServiceId
-if (Wait-RgbServer -Port $port -Seconds 30) {
-  Write-Ok "Answering at http://localhost:$port"
+$startedAt = Get-Date
+try {
+  Start-Service -Name $ServiceId -ErrorAction Stop
+} catch {
   Write-Host ''
-  Write-Host 'Install complete.' -ForegroundColor Green
-  Write-Host "  Open:      http://localhost:$port"
-  Write-Host "  Data:      $DataDir"
-  Write-Host "  Logs:      $DataDir\logs"
-  try { Stop-Transcript | Out-Null } catch { }
-} else {
-  Write-Note "The service started but nothing answered at http://localhost:$port within 30 seconds."
-  Write-Note "Its log is in $DataDir\logs (and what it printed last in $DataDir\logs\service)."
+  Write-Host "[FATAL] Windows wouldn't start the service: $(Get-RgbInnermostMessage $_.Exception)" -ForegroundColor Red
+  Write-RgbServiceDiagnostics -DataDir $DataDir -Since $startedAt
+  Write-Host "Full log: $LogFile" -ForegroundColor Yellow
   try { Stop-Transcript | Out-Null } catch { }
   exit 1
 }
+$answered = Wait-RgbServer -Port $port -Seconds 60
+$state = (Get-Service -Name $ServiceId -ErrorAction SilentlyContinue).Status
+if ($answered) {
+  Write-Ok "Answering at http://localhost:$port"
+} elseif ($state -eq 'Running') {
+  # A first start on a slow disk, or with an antivirus reading every file, can take longer than
+  # this; the service is up, so the install did its job. Not a failure.
+  Write-Note "The service is running but hasn't answered at http://localhost:$port yet (waited 60 seconds)."
+  Write-Note "Give it a minute. If it never answers, its log is in $DataDir\logs."
+} else {
+  Write-Host ''
+  Write-Host "[FATAL] The service started but then stopped (state: $state) and nothing answered at http://localhost:$port." -ForegroundColor Red
+  Write-RgbServiceDiagnostics -DataDir $DataDir -Since $startedAt
+  Write-Host "Full log: $LogFile" -ForegroundColor Yellow
+  try { Stop-Transcript | Out-Null } catch { }
+  exit 1
+}
+Write-Host ''
+Write-Host 'Install complete.' -ForegroundColor Green
+Write-Host "  Open:      http://localhost:$port"
+Write-Host "  Data:      $DataDir"
+Write-Host "  Logs:      $DataDir\logs"
+try { Stop-Transcript | Out-Null } catch { }
+exit 0
